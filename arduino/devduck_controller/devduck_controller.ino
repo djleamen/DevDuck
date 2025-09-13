@@ -11,7 +11,7 @@ void setup() {
   servoY.write(10);  // slight up
   Serial.begin(9600);
 
-  Serial.println("Duck ready! Type commands: NOD, SHAKE, DANCE, LOOKUP, LOOKDOWN, LEFT, RIGHT, SURPRISE");
+  Serial.println("Duck ready! Type commands: NOD, SHAKE, DANCE, DANCEAGAIN, LOOKUP, LOOKDOWN, LEFT, RIGHT, SURPRISE");
 }
 
 // --- Helper functions ---
@@ -31,14 +31,14 @@ void shake(int times = 3) {
 }
 
 void lookUp() {
-  servoY.write(0);   // head up
+  servoY.write(-50);   // head up
   delay(600);
-  servoY.write(10);  // back to neutral
+  servoY.write(0);  // back to neutral
 }
 
 void lookDown() {
-  servoY.write(20);  // head down
-  delay(600);
+  servoY.write(40);  // head down
+  delay(1500);
   servoY.write(10);  // back to neutral
 }
 
@@ -58,19 +58,51 @@ void dance() {
   // A little wiggle routine
   for (int i = 0; i < 2; i++) {
     servoX.write(20);  servoY.write(0);  delay(300);
-    servoX.write(100); servoY.write(20); delay(300);
+    servoX.write(30); servoY.write(20); delay(300);
+    servoX.write(40);  servoY.write(10); delay(300);
+    servoX.write(50); servoY.write(20); delay(300);
     servoX.write(60);  servoY.write(10); delay(300);
+    servoX.write(70); servoY.write(20); delay(300);
+    servoX.write(80);  servoY.write(10); delay(300);
   }
+  servoX.write(20); servoY.write(0);
 }
 
 void surprise() {
-  // Big "wow" motion
-  servoY.write(0);    // look up
+  // sudden head lift
+  servoY.write(0); 
   delay(300);
-  shake(2);           // frantic shake
-  nod(2);             // nod quickly
-  servoX.write(60);   // reset center
-  servoY.write(10);   // neutral
+
+  // frantic shakes
+  for (int i = 0; i < 3; i++) {
+    servoX.write(20); delay(150);
+    servoX.write(100); delay(150);
+  }
+
+  // quick double-nod
+  for (int i = 0; i < 2; i++) {
+    servoY.write(25); delay(200);
+    servoY.write(5);  delay(200);
+  }
+
+  // quick glance left-right like "what happened?!"
+  servoX.write(20); delay(200);
+  servoX.write(100); delay(200);
+  servoX.write(60);  // back to center
+
+  // settle back to neutral
+  servoY.write(10);
+}
+
+void danceAgain() {
+  // Shake left/right while nodding
+  for (int i = 0; i < 3; i++) {
+    servoX.write(20);  servoY.write(20); delay(250);  // left + down
+    servoX.write(100); servoY.write(0);  delay(250);  // right + up
+  }
+  // return to neutral
+  servoX.write(60);
+  servoY.write(10);
 }
 
 // --- Main loop listens for serial commands ---
@@ -88,6 +120,7 @@ void loop() {
     else if (cmd == "LEFT") lookLeft();
     else if (cmd == "RIGHT") lookRight();
     else if (cmd == "SURPRISE") surprise();
+    else if (cmd == "DANCEAGAIN") danceAgain();
     else Serial.println("Unknown command: " + cmd);
   }
 }

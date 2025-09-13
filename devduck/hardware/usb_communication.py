@@ -1,44 +1,54 @@
 import serial
 import time
 
-# --- SETUP SERIAL PORT ---
-# Change 'COM3' to your port (Linux/Mac example: '/dev/ttyUSB0')
+
 ser = serial.Serial('COM3', 9600, timeout=1)
 time.sleep(2)  # allow Arduino reset
 
-# --- DEFINE COMMANDS ---
-COMMANDS = {
-    "nod": "NOD\n",
-    "shake": "SHAKE\n",
-    "lookup": "LOOKUP\n",
-    "lookdown": "LOOKDOWN\n",
-    "left": "LEFT\n",
-    "right": "RIGHT\n",
-    "dance": "DANCE\n",
-    "surprise": "SURPRISE\n",
-    "danceagain": "DANCEAGAIN\n"
-}
 
-def send_command(command: str):
-    """Send a command string to the duck if valid."""
-    cmd = COMMANDS.get(command.lower())
-    if cmd:
-        ser.write(cmd.encode())
-        print(f"Sent: {cmd.strip()}")
-    else:
-        print(f"Unknown command: {command}")
+# --- CORE SEND FUNCTION ---
+def send_command(cmd: str):
+    ser.write((cmd + "\n").encode())
+    print(f"Sent: {cmd}")
 
-# --- INTERACTIVE LOOP ---
-if __name__ == "__main__":
-    print("Duck Control Ready 🦆")
-    print("Available commands:", ", ".join(COMMANDS.keys()))
-    print("Type 'exit' to quit.")
 
-    while True:
-        user_input = input("Enter command: ").strip().lower()
-        if user_input == "exit":
-            break
-        send_command(user_input)
+# --- ABSTRACTED FUNCTIONS ---
+def nod(): send_command("NOD")
+def shake(): send_command("SHAKE")
+def lookup(): send_command("LOOKUP")
+def lookdown(): send_command("LOOKDOWN")
+def left(): send_command("LEFT")
+def right(): send_command("RIGHT")
+def dance(): send_command("DANCE")
+def surprise(): send_command("SURPRISE")
+def danceagain(): send_command("DANCEAGAIN")
 
+
+# --- SEQUENCE FUNCTION ---
+def perform(actions, delay: float = 1.0):
+    """
+    Perform a sequence of duck actions.
+    :param actions: list of functions, e.g. [nod, shake, left]
+    :param delay: time (s) between actions
+    """
+    for action in actions:
+        action()
+        time.sleep(delay)
+
+
+# --- ROUTINES ---
+def greeting_routine():
+    """A cheerful greeting sequence."""
+    perform([nod, shake, surprise], delay=1.2)
+
+def good_luck_routine():
+    """A playful 'good luck on your coding journey' routine."""
+    perform([nod, lookup, lookdown, dance, surprise, danceagain], delay=1.5)
+
+
+# --- CLEANUP FUNCTION ---
+def close_connection():
     ser.close()
     print("Connection closed.")
+
+surprise()
