@@ -5,98 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DevDuck</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- TODO: Add favicon -->
 </head>
 <body>
-    <div class="duck-container">
-        <!-- Duck Header -->
-        <div class="duck-header">
-            <div class="duck-avatar">
-                <!-- TODO: Add duck avatar/animation -->
-                <div class="duck-emoji">🦆</div>
-            </div>
-            <div class="duck-status">
-                <span id="status-text">Ready</span>
-                <div class="status-indicator" id="status-indicator"></div>
-            </div>
+    <div class="app">
+        <div class="header">
+            <h1>🦆 DevDuck</h1>
+            <p>Your AI Development Buddy</p>
         </div>
-
-        <!-- Main Controls -->
-        <div class="main-controls">
-            <button id="listen-button" class="listen-button">
-                <span id="listen-text">Start Listening</span>
-                <div class="listen-icon">🎤</div>
+        
+        <div class="controls">
+            <button id="voice-call-btn" class="voice-btn">
+                🎤 Talk to DevDuck
             </button>
         </div>
-
-        <!-- Conversation Display -->
-        <div class="conversation-container">
-            <div class="conversation-header">
-                <h3>Conversation</h3>
-                <div class="conversation-controls">
-                    <button id="history-toggle" class="icon-button" title="Toggle History">
-                        📜
-                    </button>
-                    <button id="clear-history" class="icon-button" title="Clear History">
-                        🗑️
-                    </button>
-                </div>
-            </div>
-            
-            <div class="conversation-content" id="conversation-content">
-                <!-- TODO: Implement conversation display -->
-                <div class="message-placeholder">
-                    Start talking to DevDuck!
-                </div>
-            </div>
+        
+        <div class="history-section">
+            <label for="history-dropdown">Conversation History:</label>
+            <select id="history-dropdown" class="history-dropdown">
+                <option value="">-- Select a conversation --</option>
+            </select>
         </div>
-
-        <!-- History Dropdown -->
-        <div class="history-dropdown" id="history-dropdown" style="display: none;">
-            <div class="history-header">
-                <h4>Conversation History</h4>
-            </div>
-            <div class="history-list" id="history-list">
-                <!-- TODO: Implement history list -->
-            </div>
-        </div>
-
-        <!-- Sentiment Indicator -->
-        <div class="sentiment-container">
-            <div class="sentiment-label">Mood:</div>
-            <div class="sentiment-indicator" id="sentiment-indicator">
-                <div class="sentiment-emoji" id="sentiment-emoji">😐</div>
-                <div class="sentiment-text" id="sentiment-text">Neutral</div>
-            </div>
-        </div>
-
-        <!-- Settings Panel -->
-        <div class="settings-container">
-            <button id="settings-toggle" class="icon-button" title="Settings">
-                ⚙️
-            </button>
-            <div class="settings-panel" id="settings-panel" style="display: none;">
-                <!-- TODO: Implement settings panel -->
-                <div class="setting-item">
-                    <label>Always on Top</label>
-                    <input type="checkbox" id="always-on-top" checked>
-                </div>
-                <div class="setting-item">
-                    <label>Auto-start Listening</label>
-                    <input type="checkbox" id="auto-start">
-                </div>
-            </div>
-        </div>
-
-        <!-- Connection Status -->
-        <div class="connection-status" id="connection-status">
-            <div class="connection-indicator"></div>
-            <span>Connected</span>
-        </div>
+        
+        <div id="status" class="status">Ready</div>
     </div>
 
-    <!-- Scripts -->
+    <script>
+        if (typeof window.Vapi === 'undefined') {
+            console.log('Loading VAPI SDK dynamically...');
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/@vapi-ai/web@latest/dist/index.js';
+            script.onload = () => {
+                console.log('VAPI SDK loaded from CDN');
+                window.vapiLoaded = true;
+            };
+            script.onerror = (error) => {
+                console.error('Failed to load VAPI SDK from CDN:', error);
+            };
+            document.head.appendChild(script);
+        }
+    </script>
     <script src="renderer.js"></script>
-    <!-- TODO: Add additional scripts as needed -->
 </body>
 </html>

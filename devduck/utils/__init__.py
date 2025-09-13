@@ -7,12 +7,14 @@ Provides configuration management, logging, and utility functions for the projec
 import json
 import logging
 import os
+import sys
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+import aiofiles
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ class HardwareConfig:
     baudrate: int = 9600
     auto_detect: bool = True
     timeout: float = 5.0
-    servo_calibration: Dict[str, int] = None
+    servo_calibration: Optional[Dict[str, int]] = None
 
     def __post_init__(self):
         if self.servo_calibration is None:
@@ -45,7 +47,6 @@ class HardwareConfig:
                 "wing_right_down": 0
             }
 
-
 @dataclass
 class AIConfig:
     vapi_api_key: str = ""
@@ -57,11 +58,10 @@ class AIConfig:
     enable_sentiment_analysis: bool = True
     sentiment_threshold: float = 0.7
 
-
 @dataclass
 class AnalysisConfig:
-    supported_languages: List[str] = None
-    exclude_patterns: List[str] = None
+    supported_languages: Optional[List[str]] = None
+    exclude_patterns: Optional[List[str]] = None
     max_file_size_mb: int = 10
     enable_git_tracking: bool = True
     analysis_timeout: float = 60.0
@@ -83,7 +83,6 @@ class AnalysisConfig:
                 "dist/**"
             ]
 
-
 @dataclass
 class UIConfig:
     window_width: int = 400
@@ -93,7 +92,6 @@ class UIConfig:
     theme: str = "dark"
     websocket_port: int = 8765
     enable_tray_icon: bool = True
-
 
 @dataclass
 class DevDuckConfig:
@@ -105,12 +103,12 @@ class DevDuckConfig:
     config_version: str = "1.0.0"
 
     def to_dict(self) -> Dict[str, Any]:
-        # TODO: Implement configuration serialization
+        """Serialize the configuration to a dictionary."""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'DevDuckConfig':
-        # TODO: Implement configuration deserialization
+        """Deserialize the configuration from a dictionary."""
         return cls(
             hardware=HardwareConfig(**data.get('hardware', {})),
             ai=AIConfig(**data.get('ai', {})),
@@ -118,7 +116,6 @@ class DevDuckConfig:
             ui=UIConfig(**data.get('ui', {})),
             log_level=LogLevel(data.get('log_level', 'INFO'))
         )
-
 
 class ConfigManager:
 
@@ -130,50 +127,49 @@ class ConfigManager:
         self.config: Optional[DevDuckConfig] = None
 
     def _get_default_config_dir(self) -> Path:
-        # TODO: Implement platform-specific config directory detection
+        """Detect the default configuration directory based on the platform."""
         if os.name == 'nt':  # Windows
             config_dir = Path(os.environ.get('APPDATA', '')) / 'DevDuck'
         elif os.name == 'posix':  # macOS/Linux
-            config_dir = Path.home() / '.config' / 'devduck'
+            if sys.platform == 'darwin':  # macOS
+                config_dir = Path.home() / 'Library' / 'Application Support' / 'DevDuck'
+            else:  # Linux
+                config_dir = Path.home() / '.config' / 'devduck'
         else:
             config_dir = Path.cwd() / 'config'
 
         return config_dir
 
     async def load_config(self, config_path: Optional[str] = None) -> DevDuckConfig:
-        # TODO: Implement configuration loading
-        if config_path:
-            config_file = Path(config_path)
-        else:
-            config_file = self.config_file
+        """Load the configuration from a file or create a default configuration."""
+        config_file = Path(config_path) if config_path else self.config_file
 
         try:
             if config_file.exists():
-                with open(config_file, 'r') as f:
-                    if config_file.suffix == '.yaml' or config_file.suffix == '.yml':
-                        data = yaml.safe_load(f)
+                async with aiofiles.open(config_file, mode='r', encoding='utf-8') as f:
+                    if config_file.suffix in ['.yaml', '.yml']:
+                        data = yaml.safe_load(await f.read())
                     elif config_file.suffix == '.json':
-                        data = json.load(f)
+                        data = json.loads(await f.read())
                     else:
-                        raise ValueError(
-                            f"Unsupported config file format: {config_file.suffix}")
+                        raise ValueError(f"Unsupported config file format: {config_file.suffix}")
 
                 self.config = DevDuckConfig.from_dict(data)
-                logger.info(f"Configuration loaded from {config_file}")
+                logger.info("Configuration loaded from %s", config_file)
             else:
                 logger.info("No configuration file found, using defaults")
                 self.config = self._create_default_config()
                 await self.save_config()
 
-        except Exception as e:
-            logger.error(f"Failed to load configuration: {e}")
+        except (OSError, yaml.YAMLError, json.JSONDecodeError) as e:
+            logger.error("Failed to load configuration: %s", e)
             logger.info("Using default configuration")
             self.config = self._create_default_config()
 
         return self.config
 
     async def save_config(self, config: Optional[DevDuckConfig] = None) -> bool:
-        # TODO: Implement configuration saving
+        """Save the current configuration to a file."""
         if config:
             self.config = config
 
@@ -184,24 +180,24 @@ class ConfigManager:
         try:
             self.config_dir.mkdir(parents=True, exist_ok=True)
 
-            with open(self.config_file, 'w') as f:
-                yaml.dump(self.config.to_dict(), f,
-                          default_flow_style=False, indent=2)
+            async with aiofiles.open(self.config_file, mode='w', encoding='utf-8') as f:
+                await f.write(yaml.dump(self.config.to_dict(), default_flow_style=False, indent=2))
 
-            logger.info(f"Configuration saved to {self.config_file}")
+            logger.info("Configuration saved to %s", self.config_file)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to save configuration: {e}")
+        except OSError as e:
+            logger.error("Failed to save configuration: %s", e)
             return False
 
     def _create_default_config(self) -> DevDuckConfig:
-        # TODO: Create sensible default configuration
+        """Create a default configuration with sensible values."""
         return DevDuckConfig(
             hardware=HardwareConfig(),
-            ai=AIConfig(),
+            ai=AIConfig(vapi_api_key="", assistant_id=None, voice_model="vapi-default", language="en-US"),
             analysis=AnalysisConfig(),
-            ui=UIConfig()
+            ui=UIConfig(window_width=800, window_height=600, theme="light"),
+            log_level=LogLevel.INFO
         )
 
     def validate_config(self, config: DevDuckConfig) -> List[str]:
@@ -217,7 +213,7 @@ class ConfigManager:
         if config.analysis.max_file_size_mb <= 0:
             errors.append("Max file size must be positive")
 
-        if config.ui.websocket_port <= 0 or config.ui.websocket_port > 65535:
+        if not (1 <= config.ui.websocket_port <= 65535):
             errors.append("WebSocket port must be between 1 and 65535")
 
         return errors
@@ -226,8 +222,8 @@ class ConfigManager:
         return self.config
 
     def update_config(self, updates: Dict[str, Any]) -> bool:
-        # TODO: Implement configuration updates
         if not self.config:
+            logger.error("No configuration loaded to update")
             return False
 
         try:
@@ -238,31 +234,32 @@ class ConfigManager:
             errors = self.validate_config(updated_config)
 
             if errors:
-                logger.error(f"Configuration validation failed: {errors}")
+                logger.error("Configuration validation failed: %s", errors)
                 return False
 
             self.config = updated_config
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update configuration: {e}")
+            logger.error("Failed to update configuration: %s", e)
             return False
 
     def _deep_update(self, base_dict: Dict[str, Any], update_dict: Dict[str, Any]) -> None:
-        # TODO: Implement deep dictionary update
+        # Implemented deep dictionary update
+        """Recursively update a dictionary with another dictionary."""
         for key, value in update_dict.items():
             if key in base_dict and isinstance(base_dict[key], dict) and isinstance(value, dict):
                 self._deep_update(base_dict[key], value)
             else:
                 base_dict[key] = value
 
-
 class Logger:
     @staticmethod
     def setup_logging(log_level: LogLevel = LogLevel.INFO,
                       log_file: Optional[str] = None,
                       enable_console: bool = True) -> None:
-        # TODO: Implement logging setup
+        # Implemented logging setup
+        """Set up logging with the specified log level and handlers."""
         root_logger = logging.getLogger()
         root_logger.handlers.clear()
 
@@ -279,7 +276,7 @@ class Logger:
             root_logger.addHandler(console_handler)
 
         if log_file:
-            file_handler = logging.FileHandler(log_file)
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
             file_handler.setFormatter(formatter)
             root_logger.addHandler(file_handler)
 
@@ -289,7 +286,8 @@ class Logger:
 
 
 def get_project_root() -> Path:
-    # TODO: Implement project root detection
+    # Implemented project root detection
+    """Detect the project root by looking for setup.py or pyproject.toml."""
     current_path = Path(__file__).parent
     while current_path.parent != current_path:
         if (current_path / 'setup.py').exists() or (current_path / 'pyproject.toml').exists():
@@ -299,56 +297,60 @@ def get_project_root() -> Path:
 
 
 def ensure_directory_exists(directory: Path) -> bool:
-    # TODO: Implement directory creation
+    # Implemented directory creation
+    """Ensure that a directory exists, creating it if necessary."""
     try:
         directory.mkdir(parents=True, exist_ok=True)
         return True
-    except Exception as e:
-        logger.error(f"Failed to create directory {directory}: {e}")
+    except OSError as e:
+        logger.error("Failed to create directory %s: %s", directory, e)
         return False
 
 
 def load_json_file(file_path: Path) -> Optional[Dict[str, Any]]:
-    # TODO: Implement JSON file loading
+    # Implemented JSON file loading
+    """Load a JSON file and return its contents as a dictionary."""
     try:
-        with open(file_path, 'r') as f:
+        with file_path.open(mode='r', encoding='utf-8') as f:
             return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load JSON file {file_path}: {e}")
+    except (OSError, json.JSONDecodeError) as e:
+        logger.error("Failed to load JSON file %s: %s", file_path, e)
         return None
 
 
 def save_json_file(file_path: Path, data: Dict[str, Any], indent: int = 2) -> bool:
-    # TODO: Implement JSON file saving
+    # Implemented JSON file saving
+    """Save a dictionary to a JSON file."""
     try:
-        with open(file_path, 'w') as f:
+        with file_path.open(mode='w', encoding='utf-8') as f:
             json.dump(data, f, indent=indent, default=str)
         return True
-    except Exception as e:
-        logger.error(f"Failed to save JSON file {file_path}: {e}")
+    except OSError as e:
+        logger.error("Failed to save JSON file %s: %s", file_path, e)
         return False
 
 
-def format_duration(seconds: float) -> str:
-    # TODO: Implement duration formatting
-    if seconds < 60:
-        return f"{seconds:.1f}s"
-    elif seconds < 3600:
-        minutes = seconds / 60
-        return f"{minutes:.1f}m"
+# Implemented format_duration function
+def format_duration(seconds: int) -> str:
+    """Format a duration in seconds into a human-readable string."""
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours}h {minutes}m {seconds}s"
+    elif minutes > 0:
+        return f"{minutes}m {seconds}s"
     else:
-        hours = seconds / 3600
-        return f"{hours:.1f}h"
+        return f"{seconds}s"
 
 
+# Implemented format_file_size function
 def format_file_size(bytes_size: int) -> str:
-    # TODO: Implement file size formatting
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if bytes_size < 1024.0:
-            return f"{bytes_size:.1f} {unit}"
-        bytes_size /= 1024.0
-    return f"{bytes_size:.1f} PB"
-
+    """Format a file size in bytes into a human-readable string."""
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if bytes_size < 1024:
+            return f"{bytes_size:.2f} {unit}"
+        bytes_size = int(bytes_size / 1024)
+    return f"{bytes_size:.2f} PB"
 
 # Global instances
 Config = ConfigManager()

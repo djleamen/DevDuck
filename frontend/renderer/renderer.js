@@ -1,341 +1,360 @@
 /**
- * DevDuck Renderer Process JavaScript
+ * DevDuck UI Renderer with VAPI Voice Integration
  * 
- * Handles UI interactions and communication with main process.
+ * Manages the frontend interactions and communicates with the backend API.
  */
 
-// TODO: Initialize renderer application state
-let appState = {
-    isListening: false,
-    isConnected: false,
-    conversationHistory: [],
-    currentSentiment: 'neutral'
-};
+require('dotenv').config();
 
-// TODO: Initialize DOM elements
-const elements = {
-    listenButton: null,
-    listenText: null,
-    statusText: null,
-    statusIndicator: null,
-    conversationContent: null,
-    historyDropdown: null,
-    historyList: null,
-    historyToggle: null,
-    clearHistory: null,
-    sentimentEmoji: null,
-    sentimentText: null,
-    connectionStatus: null,
-    settingsToggle: null,
-    settingsPanel: null
-};
+let Vapi;
 
-async function initializeApp() {
-    // TODO: Implement app initialization
-    console.log('Initializing DevDuck frontend...');
-    
-    // Get DOM elements
-    initializeElements();
-    
-    // Set up event listeners
-    setupEventListeners();
-    
-    // Get initial app state
-    await updateAppState();
-    
-    // Set up API listeners
-    setupAPIListeners();
-    
-    console.log('DevDuck frontend initialized');
+try {
+    const vapiModule = require('@vapi-ai/web');
+    Vapi = vapiModule.default || vapiModule;
+    console.log('VAPI module loaded via require:', typeof Vapi);
+} catch (error) {
+    console.warn('VAPI module not found via require:', error.message);
+    console.log('Will attempt to use CDN version from window.Vapi');
 }
-
-function initializeElements() {
-    // TODO: Get all DOM element references
-    elements.listenButton = document.getElementById('listen-button');
-    elements.listenText = document.getElementById('listen-text');
-    elements.statusText = document.getElementById('status-text');
-    elements.statusIndicator = document.getElementById('status-indicator');
-    elements.conversationContent = document.getElementById('conversation-content');
-    elements.historyDropdown = document.getElementById('history-dropdown');
-    elements.historyList = document.getElementById('history-list');
-    elements.historyToggle = document.getElementById('history-toggle');
-    elements.clearHistory = document.getElementById('clear-history');
-    elements.sentimentEmoji = document.getElementById('sentiment-emoji');
-    elements.sentimentText = document.getElementById('sentiment-text');
-    elements.connectionStatus = document.getElementById('connection-status');
-    elements.settingsToggle = document.getElementById('settings-toggle');
-    elements.settingsPanel = document.getElementById('settings-panel');
-}
-
-function setupEventListeners() {
-    // TODO: Set up all event listeners
-    
-    // Listen button
-    if (elements.listenButton) {
-        elements.listenButton.addEventListener('click', handleListenToggle);
-    }
-    
-    // History toggle
-    if (elements.historyToggle) {
-        elements.historyToggle.addEventListener('click', handleHistoryToggle);
-    }
-    
-    // Clear history
-    if (elements.clearHistory) {
-        elements.clearHistory.addEventListener('click', handleClearHistory);
-    }
-    
-    // Settings toggle
-    if (elements.settingsToggle) {
-        elements.settingsToggle.addEventListener('click', handleSettingsToggle);
-    }
-    
-    // TODO: Add keyboard shortcuts
-    document.addEventListener('keydown', handleKeyDown);
-}
-
-function setupAPIListeners() {
-    // TODO: Set up API listeners
-    
-    if (window.devDuckAPI) {
-        // Conversation updates
-        window.devDuckAPI.onConversationUpdate((data) => {
-            handleConversationUpdate(data);
-        });
+class DevDuckUI {
+    constructor() {
+        this.apiBase = process.env.VAPI_WEBHOOK_URL || 'http://localhost:8001';
+        this.isListening = false;
+        this.vapi = null;
+        this.isCallActive = false;
         
-        // Sentiment updates
-        window.devDuckAPI.onSentimentUpdate((data) => {
-            handleSentimentUpdate(data);
-        });
-        
-        // Listening state changes
-        window.devDuckAPI.onListeningStateChange((data) => {
-            handleListeningStateChange(data);
-        });
-        
-        // Duck actions
-        window.devDuckAPI.onDuckAction((data) => {
-            handleDuckAction(data);
-        });
+        this.initializeElements();
+        this.setupEventListeners();
+        this.loadHistory();
+        this.updateStatus('Ready');
+        this.initializeVapi();
     }
-}
 
-async function updateAppState() {
-    // TODO: Update app state
-    try {
-        if (window.devDuckAPI) {
-            const state = await window.devDuckAPI.getAppState();
-            appState.isListening = state.isListening;
-            appState.isConnected = state.isConnected;
+    initializeElements() {
+        this.voiceBtn = document.getElementById('voice-call-btn');
+        this.historyDropdown = document.getElementById('history-dropdown');
+        this.statusElement = document.getElementById('status');
+        
+        console.log('Elements initialized:');
+        console.log('  voiceBtn:', this.voiceBtn);
+        console.log('  historyDropdown:', this.historyDropdown);
+        console.log('  statusElement:', this.statusElement);
+    }
+
+    initializeVapi() {
+        console.log('=== VAPI Initialization Debug ===');
+        console.log('window.Vapi:', typeof window.Vapi);
+        console.log('Imported Vapi:', typeof Vapi);
+        console.log('window.vapiLoaded:', window.vapiLoaded);
+        console.log('window keys containing "vapi":', Object.keys(window).filter(k => k.toLowerCase().includes('vapi')));
+        console.log('window keys containing "Vapi":', Object.keys(window).filter(k => k.includes('Vapi')));
+        
+        const VapiClass = Vapi || window.Vapi;
+        
+        console.log('VapiClass found:', !!VapiClass);
+        console.log('VapiClass type:', typeof VapiClass);
+        
+        if (!VapiClass) {
+            console.log('VAPI not available, retrying...');
+            this.vapiRetryCount = (this.vapiRetryCount || 0) + 1;
+            console.log(`Retry attempt: ${this.vapiRetryCount}/15`);
+
+            if (this.vapiRetryCount < 15) {
+                setTimeout(() => this.initializeVapi(), 3000);
+                return;
+            } else {
+                console.error('VAPI failed to load after multiple attempts');
+                console.log('Attempting manual fallback initialization...');
+                this.attemptFallbackInitialization();
+                return;
+            }
+        }
+
+        try {
+            console.log('VAPI found, attempting initialization...');
+            console.log('Public key: ', process.env.VAPI_PUBLIC_KEY);
+
+            this.vapi = new VapiClass(process.env.VAPI_PUBLIC_KEY);
+
+            console.log('VAPI instance created successfully:', this.vapi);
+            console.log('VAPI instance methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(this.vapi)));
             
-            updateUI();
-        }
-    } catch (error) {
-        console.error('Failed to update app state:', error);
-    }
-}
+            this.vapi.on('call-start', () => {
+                console.log('VAPI call started');
+                this.isCallActive = true;
+                this.updateVoiceButton();
+                this.updateStatus('🎤 Connected to DevDuck - Speak now!');
+            });
 
-function updateUI() {
-    // TODO: Update all UI elements
-    updateListenButton();
-    updateStatusIndicator();
-    updateConnectionStatus();
-}
+            this.vapi.on('call-end', () => {
+                console.log('VAPI call ended');
+                this.isCallActive = false;
+                this.updateVoiceButton();
+                this.updateStatus('Call ended');
+                setTimeout(() => this.loadHistory(), 1000);
+            });
 
-function updateListenButton() {
-    // TODO: Update listen button
-    if (elements.listenButton && elements.listenText) {
-        if (appState.isListening) {
-            elements.listenButton.classList.add('listening');
-            elements.listenText.textContent = 'Stop Listening';
-        } else {
-            elements.listenButton.classList.remove('listening');
-            elements.listenText.textContent = 'Start Listening';
-        }
-    }
-}
+            this.vapi.on('speech-start', () => {
+                console.log('Assistant started speaking');
+                this.updateStatus('🦆 DevDuck is speaking...');
+            });
 
-function updateStatusIndicator() {
-    // TODO: Update status indicator
-    if (elements.statusText && elements.statusIndicator) {
-        if (appState.isListening) {
-            elements.statusText.textContent = 'Listening...';
-            elements.statusIndicator.className = 'status-indicator listening';
-        } else if (appState.isConnected) {
-            elements.statusText.textContent = 'Ready';
-            elements.statusIndicator.className = 'status-indicator ready';
-        } else {
-            elements.statusText.textContent = 'Disconnected';
-            elements.statusIndicator.className = 'status-indicator disconnected';
-        }
-    }
-}
+            this.vapi.on('speech-end', () => {
+                console.log('Assistant stopped speaking');
+                this.updateStatus('🎤 Your turn to speak');
+            });
 
-function updateConnectionStatus() {
-    // TODO: Update connection status
-    if (elements.connectionStatus) {
-        if (appState.isConnected) {
-            elements.connectionStatus.classList.add('connected');
-            elements.connectionStatus.classList.remove('disconnected');
-        } else {
-            elements.connectionStatus.classList.add('disconnected');
-            elements.connectionStatus.classList.remove('connected');
+            this.vapi.on('message', (message) => {
+                console.log('VAPI message:', message);
+                if (message.type === 'transcript') {
+                    console.log(`${message.role}: ${message.transcript}`);
+                }
+            });
+
+            this.vapi.on('error', (error) => {
+                console.error('VAPI error:', error);
+                this.updateStatus(`Error: ${error.message}`);
+                this.isCallActive = false;
+                this.updateVoiceButton();
+            });
+
+            console.log('VAPI initialized successfully');
+            this.updateStatus('🎤 Voice ready! Click "Talk to DevDuck"');
+        } catch (error) {
+            console.error('Failed to initialize VAPI:', error);
+            console.error('Error stack:', error.stack);
+            this.updateStatus('Voice feature unavailable - Initialization failed');
         }
     }
-}
 
-async function handleListenToggle() {
-    // TODO: Handle listen toggle
-    try {
-        if (window.devDuckAPI) {
-            const newState = await window.devDuckAPI.toggleListening();
-            appState.isListening = newState;
-            updateUI();
-        }
-    } catch (error) {
-        console.error('Failed to toggle listening:', error);
-    }
-}
-
-function handleHistoryToggle() {
-    // TODO: Handle history toggle
-    if (elements.historyDropdown) {
-        const isVisible = elements.historyDropdown.style.display !== 'none';
-        elements.historyDropdown.style.display = isVisible ? 'none' : 'block';
+    attemptFallbackInitialization() {
+        console.log('Attempting fallback VAPI initialization...');
+        this.updateStatus('Attempting to load voice SDK...');
         
-        if (!isVisible) {
-            loadConversationHistory();
+        const fallbackScript = document.createElement('script');
+        fallbackScript.src = 'https://unpkg.com/@vapi-ai/web@latest/dist/index.js';
+        fallbackScript.onload = () => {
+            console.log('Fallback VAPI SDK loaded');
+            setTimeout(() => this.initializeVapi(), 1000);
+        };
+        fallbackScript.onerror = () => {
+            console.error('Fallback VAPI SDK failed to load');
+            this.updateStatus('Voice feature unavailable - Cannot load SDK');
+        };
+        
+        document.head.appendChild(fallbackScript);
+    }    setupEventListeners() {
+        if (this.voiceBtn) {
+            this.voiceBtn.addEventListener('click', () => this.toggleVoiceCall());
+            console.log('Voice button event listener added');
+        } else {
+            console.error('Voice button not found!');
         }
-    }
-}
-
-async function handleClearHistory() {
-    // TODO: Handle clear history
-    try {
-        if (window.devDuckAPI) {
-            await window.devDuckAPI.clearHistory();
-            appState.conversationHistory = [];
-            updateConversationDisplay();
+        
+        if (this.historyDropdown) {
+            this.historyDropdown.addEventListener('change', (e) => this.showHistoryItem(e.target.value));
         }
-    } catch (error) {
-        console.error('Failed to clear history:', error);
+        
+        setInterval(() => this.loadHistory(), 5000);
     }
-}
 
-function handleSettingsToggle() {
-    // TODO: Handle settings toggle
-    if (elements.settingsPanel) {
-        const isVisible = elements.settingsPanel.style.display !== 'none';
-        elements.settingsPanel.style.display = isVisible ? 'none' : 'block';
-    }
-}
+    async toggleVoiceCall() {
+        console.log('toggleVoiceCall called');
+        console.log('this.vapi:', this.vapi);
+        
+        if (!this.vapi) {
+            console.log('VAPI not available');
+            this.updateStatus('Voice feature not available - VAPI not initialized');
+            return;
+        }
 
-function handleKeyDown(event) {
-    // TODO: Handle keyboard shortcuts
-    switch (event.code) {
-        case 'Space':
-            if (event.ctrlKey || event.metaKey) {
-                event.preventDefault();
-                handleListenToggle();
+        try {
+            if (this.isCallActive) {
+                console.log('Stopping call...');
+                await this.vapi.stop();
+                this.updateStatus('Ending call...');
+            } else {
+                console.log('Starting call...');
+                this.updateStatus('Starting voice call...');
+                
+                await this.vapi.start(process.env.VAPI_ASSISTANT_ID || 'default');
             }
-            break;
-        case 'KeyH':
-            if (event.ctrlKey || event.metaKey) {
-                event.preventDefault();
-                handleHistoryToggle();
-            }
-            break;
-    }
-}
-
-function handleConversationUpdate(data) {
-    // TODO: Handle conversation updates
-    console.log('Conversation update:', data);
-    appState.conversationHistory.push(data);
-    updateConversationDisplay();
-}
-
-function handleSentimentUpdate(data) {
-    // TODO: Handle sentiment updates
-    console.log('Sentiment update:', data);
-    appState.currentSentiment = data.sentiment;
-    updateSentimentDisplay(data);
-}
-
-function handleListeningStateChange(data) {
-    // TODO: Handle listening state changes
-    console.log('Listening state change:', data);
-    appState.isListening = data.listening;
-    updateUI();
-}
-
-function handleDuckAction(data) {
-    // TODO: Handle duck actions
-    console.log('Duck action:', data);
-    // Could trigger UI animations or notifications
-}
-
-async function loadConversationHistory() {
-    // TODO: Load conversation history
-    try {
-        if (window.devDuckAPI) {
-            const history = await window.devDuckAPI.getConversationHistory();
-            appState.conversationHistory = history;
-            updateHistoryDisplay();
+        } catch (error) {
+            console.error('Voice call error:', error);
+            this.updateStatus(`Call error: ${error.message}`);
+            this.isCallActive = false;
+            this.updateVoiceButton();
         }
-    } catch (error) {
-        console.error('Failed to load conversation history:', error);
+    }
+
+    updateVoiceButton() {
+        if (!this.voiceBtn) return;
+        
+        if (this.isCallActive) {
+            this.voiceBtn.textContent = '🔴 End Call';
+            this.voiceBtn.classList.add('calling');
+        } else {
+            this.voiceBtn.textContent = '🎤 Talk to DevDuck';
+            this.voiceBtn.classList.remove('calling');
+        }
+    }
+
+    async toggleListening() {
+        try {
+            this.updateStatus('Toggling...');
+            
+            const response = await fetch(`${this.apiBase}/listening/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            this.isListening = data.isListening;
+            
+            this.updateToggleButton();
+            this.updateStatus(this.isListening ? 'Listening...' : 'Stopped');
+            
+            setTimeout(() => this.loadHistory(), 500);
+            
+        } catch (error) {
+            console.error('Error toggling listening:', error);
+            this.updateStatus('Error: Could not connect to API');
+        }
+    }
+
+    updateToggleButton() {
+        if (this.isListening) {
+            this.toggleBtn.textContent = 'Stop Listening';
+            this.toggleBtn.classList.add('listening');
+        } else {
+            this.toggleBtn.textContent = 'Start Listening';
+            this.toggleBtn.classList.remove('listening');
+        }
+    }
+
+    async loadHistory() {
+        try {
+            const response = await fetch(`${this.apiBase}/history`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            this.populateHistoryDropdown(data.history || []);
+            
+        } catch (error) {
+            console.error('Error loading history:', error);
+        }
+    }
+
+    populateHistoryDropdown(history) {
+        this.historyDropdown.innerHTML = '<option value="">-- Select a conversation --</option>';
+        
+        if (history.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No history available';
+            option.disabled = true;
+            this.historyDropdown.appendChild(option);
+            return;
+        }
+
+        history.forEach((item, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            
+            const time = new Date(item.time).toLocaleTimeString();
+            const eventText = item.event || 'Event';
+            option.textContent = `${time} - ${eventText}`;
+            
+            this.historyDropdown.appendChild(option);
+        });
+    }
+
+    showHistoryItem(index) {
+        if (!index) return;
+        
+        this.updateStatus(`Selected history item #${parseInt(index) + 1}`);
+    }
+
+    updateStatus(message) {
+        this.statusElement.textContent = message;
+        
+        this.statusElement.classList.remove('listening', 'error');
+        
+        if (message.includes('Error')) {
+            this.statusElement.classList.add('error');
+        } else if (message.includes('Listening')) {
+            this.statusElement.classList.add('listening');
+        }
+    }
+
+    async checkServerStatus() {
+        try {
+            const response = await fetch(`${this.apiBase}/health`);
+            return response.ok;
+        } catch (error) {
+            console.warn('Server health check failed:', error.message);
+            return false;
+        }
+    }
+
+    fetchCodeSnippet(filePath) {
+        const url = `${this.apiBase}/get_code_snippet`;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: 'get_code_snippet',
+                parameters: { file_path: filePath },
+            }),
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Error fetching code snippet: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    this.displayCodeSnippet(data.code_snippet);
+                } else {
+                    console.error('Failed to fetch code snippet:', data);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+    }
+
+    displayCodeSnippet(codeSnippet) {
+        const snippetElement = document.getElementById('code-snippet-display');
+        snippetElement.textContent = codeSnippet;
     }
 }
 
-function updateConversationDisplay() {
-    // TODO: Update conversation display
-    if (elements.conversationContent) {
-        // Show latest messages
-        // Implementation would display conversation messages
-    }
-}
-
-function updateHistoryDisplay() {
-    // TODO: Update history display
-    if (elements.historyList) {
-        // Display conversation history in dropdown
-        // Implementation would show all historical conversations
-    }
-}
-
-function updateSentimentDisplay(sentimentData) {
-    // TODO: Update sentiment display
-    if (elements.sentimentEmoji && elements.sentimentText) {
-        const emoji = getSentimentEmoji(sentimentData.sentiment);
-        elements.sentimentEmoji.textContent = emoji;
-        elements.sentimentText.textContent = sentimentData.sentiment;
-    }
-}
-
-function getSentimentEmoji(sentiment) {
-    // TODO: Map sentiment to emoji
-    const emojiMap = {
-        'happy': '😊',
-        'sad': '😢',
-        'angry': '😠',
-        'frustrated': '😤',
-        'stressed': '😰',
-        'calm': '😌',
-        'excited': '🤩',
-        'confused': '😕',
-        'neutral': '😐'
-    };
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, checking for VAPI...');
+    console.log('window.Vapi:', typeof window.Vapi);
+    console.log('Voice button element:', document.getElementById('voice-call-btn'));
     
-    return emojiMap[sentiment] || '😐';
-}
-
-// TODO: Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', initializeApp);
-
-// TODO: Clean up listeners when window is closed
-window.addEventListener('beforeunload', () => {
-    if (window.devDuckAPI) {
-        window.devDuckAPI.removeAllListeners();
-    }
+    const app = new DevDuckUI();
+    
+    app.checkServerStatus().then(isOnline => {
+        if (!isOnline) {
+            app.updateStatus('Warning: API server not available');
+        }
+    }).catch(error => {
+        console.error('Server check failed:', error);
+        app.updateStatus('Warning: Could not check API server status');
+    });
 });

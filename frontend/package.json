@@ -1,15 +1,11 @@
 {
   "name": "devduck-frontend",
   "version": "0.1.0",
-  "description": "DevDuck Electron Frontend",
+  "description": "DevDuck Electron Frontend - Minimal Implementation",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev",
-    "build": "npm run build-renderer",
-    "build-renderer": "webpack --mode production",
-    "build-dev": "webpack --mode development",
-    "test": "jest"
+    "dev": "electron . --dev"
   },
   "keywords": [
     "devduck",
@@ -21,15 +17,9 @@
   "author": "DJ Leamen & Nahl Farhan",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^22.0.0",
-    "webpack": "^5.75.0",
-    "webpack-cli": "^5.0.0",
-    "html-webpack-plugin": "^5.5.0",
-    "css-loader": "^6.7.0",
-    "style-loader": "^3.3.0",
-    "jest": "^29.0.0"
+    "electron": "^22.0.0"
   },
   "dependencies": {
-    "socket.io-client": "^4.6.0"
+    "@vapi-ai/web": "^2.3.10"
   }
 }

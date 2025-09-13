@@ -8,3 +8,5 @@ node_modules/
 dist/
 build/
 *.log
+certs/
+*.pem
