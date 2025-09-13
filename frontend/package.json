@@ -1,7 +1,7 @@
 {
   "name": "devduck-frontend",
   "version": "0.1.0",
-  "description": "DevDuck Electron Frontend - Minimal Implementation",
+  "description": "DevDuck Electron Frontend",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
