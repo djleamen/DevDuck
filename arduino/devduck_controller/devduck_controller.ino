@@ -1,102 +1,93 @@
 #include <Servo.h>
 
-Servo neck_side;
-Servo neck_up;
-Servo left_wing;
-Servo right_wing;
-
-// Servo pins
-int side = 9;
-int up = 10;
-int left = 11;
-int right = 13;
-
-String inputString = "";  // store incoming serial text
-bool stringComplete = false;
+Servo servoX;  // X-axis servo (side-to-side)
+Servo servoY;  // Y-axis servo (up-down)
 
 void setup() {
+  servoX.attach(12);
+  servoY.attach(13);
+
+  servoX.write(60);  // neutral center position
+  servoY.write(10);  // slight up
   Serial.begin(9600);
 
-  neck_side.attach(side);
-  neck_up.attach(up);
-  left_wing.attach(left);
-  right_wing.attach(right);
-
-  // Start all servos at 90 (neutral position)
-  neck_side.write(90);
-  neck_up.write(90);
-  left_wing.write(90);
-  right_wing.write(90);
-
-  Serial.println("Ready for commands: yes, no, flap, reset...");
+  Serial.println("Duck ready! Type commands: NOD, SHAKE, DANCE, LOOKUP, LOOKDOWN, LEFT, RIGHT, SURPRISE");
 }
 
+// --- Helper functions ---
+void nod(int times = 2) {
+  for (int i = 0; i < times; i++) {
+    servoY.write(20); delay(300);
+    servoY.write(0);  delay(300);
+  }
+}
+
+void shake(int times = 3) {
+  for (int i = 0; i < times; i++) {
+    servoX.write(20);  delay(250);
+    servoX.write(100); delay(250);
+  }
+  servoX.write(60); // reset center
+}
+
+void lookUp() {
+  servoY.write(0);   // head up
+  delay(600);
+  servoY.write(10);  // back to neutral
+}
+
+void lookDown() {
+  servoY.write(20);  // head down
+  delay(600);
+  servoY.write(10);  // back to neutral
+}
+
+void lookLeft() {
+  servoX.write(0);
+  delay(600);
+  servoX.write(60);
+}
+
+void lookRight() {
+  servoX.write(120);
+  delay(600);
+  servoX.write(60);
+}
+
+void dance() {
+  // A little wiggle routine
+  for (int i = 0; i < 2; i++) {
+    servoX.write(20);  servoY.write(0);  delay(300);
+    servoX.write(100); servoY.write(20); delay(300);
+    servoX.write(60);  servoY.write(10); delay(300);
+  }
+}
+
+void surprise() {
+  // Big "wow" motion
+  servoY.write(0);    // look up
+  delay(300);
+  shake(2);           // frantic shake
+  nod(2);             // nod quickly
+  servoX.write(60);   // reset center
+  servoY.write(10);   // neutral
+}
+
+// --- Main loop listens for serial commands ---
 void loop() {
-  // Check if a full command was received
-  if (stringComplete) {
-    inputString.trim();  // remove whitespace/newlines
-    handleCommand(inputString);
-    inputString = "";
-    stringComplete = false;
-  }
-}
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    cmd.toUpperCase();
 
-// Function to handle commands
-void handleCommand(String cmd) {
-  if (cmd.equalsIgnoreCase("yes")) {
-    Serial.println("Nodding Yes");
-    for (int i = 0; i < 2; i++) {
-      neck_up.write(60);  // down
-      delay(300);
-      neck_up.write(120); // up
-      delay(300);
-    }
-    neck_up.write(90); // back to neutral
-  } 
-  else if (cmd.equalsIgnoreCase("no")) {
-    Serial.println("Shaking No");
-    for (int i = 0; i < 2; i++) {
-      neck_side.write(60);  // left
-      delay(300);
-      neck_side.write(120); // right
-      delay(300);
-    }
-    neck_side.write(90); // neutral
-  } 
-  else if (cmd.equalsIgnoreCase("flap")) {
-    Serial.println("Flapping Wings");
-    for (int i = 0; i < 3; i++) {
-      left_wing.write(30);
-      right_wing.write(150);
-      delay(300);
-      left_wing.write(150);
-      right_wing.write(30);
-      delay(300);
-    }
-    left_wing.write(90);
-    right_wing.write(90);
-  }
-  else if (cmd.equalsIgnoreCase("reset")) {
-    Serial.println("Resetting to neutral");
-    neck_side.write(90);
-    neck_up.write(90);
-    left_wing.write(90);
-    right_wing.write(90);
-  }
-  else {
-    Serial.print("Unknown command: ");
-    Serial.println(cmd);
-  }
-}
-
-// SerialEvent occurs whenever new data comes in
-void serialEvent() {
-  while (Serial.available()) {
-    char inChar = (char)Serial.read();
-    if (inChar == '\n') {   // command ends when newline is received
-      stringComplete = true;
-    } else {
-      inputString += inChar;
-    }
+    if (cmd == "NOD") nod();
+    else if (cmd == "SHAKE") shake();
+    else if (cmd == "DANCE") dance();
+    else if (cmd == "LOOKUP") lookUp();
+    else if (cmd == "LOOKDOWN") lookDown();
+    else if (cmd == "LEFT") lookLeft();
+    else if (cmd == "RIGHT") lookRight();
+    else if (cmd == "SURPRISE") surprise();
+    else Serial.println("Unknown command: " + cmd);
   }
 }
