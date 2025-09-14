@@ -18,11 +18,13 @@ try {
 class DevDuckUI {
     constructor() {
     this.apiBase = 'http://localhost:8001';
-    this.vapiPublicKey = '0409a72a-a2b0-4025-864b-000aa7b36e54';
-    this.vapiAssistantId = '4281ec0c-ca9b-4fa5-ae8e-22f236a1d66b';
+    this.vapiPublicKey = '';  // ADD PUBLIC KEY HERE
+    this.vapiAssistantId = ''; // ADD THE DEVDUCK ASSISTANT ID HERE
         this.isListening = false;
         this.vapi = null;
         this.isCallActive = false;
+        this.lastShakeAt = 0;
+        this.minShakeGapMs = 3000;
         
         this.initializeElements();
         this.setupEventListeners();
@@ -129,6 +131,18 @@ class DevDuckUI {
                 console.log('VAPI message:', message);
                 if (message.type === 'transcript') {
                     console.log(`${message.role}: ${message.transcript}`);
+                    // human cues: if user says "no" or sounds sad, shake head
+                    try {
+                        if (message.role === 'user' && this.shouldShakeFromTranscript(message.transcript)) {
+                            const now = Date.now();
+                            if (now - this.lastShakeAt > this.minShakeGapMs) {
+                                this.lastShakeAt = now;
+                                this.post('/duck/gesture/shake');
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Shake detection error:', e);
+                    }
                 }
             });
 
@@ -146,6 +160,17 @@ class DevDuckUI {
             console.error('Error stack:', error.stack);
             this.updateStatus('Voice feature unavailable - Initialization failed');
         }
+    }
+
+    shouldShakeFromTranscript(text) {
+        if (!text || typeof text !== 'string') return false;
+        const t = text.toLowerCase();
+        // exact word "no"
+        const saidNo = /\bno\b/.test(t);
+        // simple sad tone keywords
+        const sadWords = ['sad', 'unhappy', 'down', 'upset', 'depressed', 'blue', 'cry', 'crying', 'frustrated'];
+        const soundsSad = sadWords.some(w => t.includes(w));
+        return saidNo || soundsSad;
     }
 
     attemptFallbackInitialization() {
@@ -198,7 +223,6 @@ class DevDuckUI {
                 console.log('Starting call...');
                 this.updateStatus('Starting voice call...');
 
-                // Call backend to toggle listening ON
                 try {
                     const response = await fetch(`${this.apiBase}/listening/toggle`, {
                         method: 'POST',
@@ -307,7 +331,7 @@ class DevDuckUI {
         history.forEach((item, index) => {
             const option = document.createElement('option');
             option.value = index;
-            
+
             const time = new Date(item.time).toLocaleTimeString();
             const eventText = item.event || 'Event';
             option.textContent = `${time} - ${eventText}`;

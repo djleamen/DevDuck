@@ -1,13 +1,11 @@
 """
 DevDuck Main Application
 
-Simplified main application that coordinates the API server and basic functionality.
+Main application that coordinates the API server and basic functionality.
 """
-
 
 import asyncio
 import logging
-# For audio sentiment listener
 import threading
 import time
 from typing import Optional
@@ -24,6 +22,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class DevDuckApplication:
+    """Main DevDuck application class coordinating components."""
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or "demo_key"
         self.vapi_client = VAPIClient(self.api_key)
@@ -33,6 +32,7 @@ class DevDuckApplication:
         self._sentiment_running = False
 
     def start(self) -> bool:
+        """Start the DevDuck application."""
         try:
             self.is_running = True
             success = self.vapi_client.start_conversation()
@@ -47,6 +47,7 @@ class DevDuckApplication:
             return False
 
     def stop(self) -> bool:
+        """Stop the DevDuck application."""
         try:
             self.is_running = False
             self.stop_sentiment_listener()
@@ -59,8 +60,9 @@ class DevDuckApplication:
         except Exception as e:
             logger.error("Failed to stop DevDuck application: %s", e)
             return False
-    # --- Sentiment Audio Listener ---
+
     def start_sentiment_listener(self):
+        """Start background thread to listen for sentiment audio."""
         if sr is None:
             logger.warning("speech_recognition not installed; sentiment listener disabled.")
             return
@@ -73,12 +75,14 @@ class DevDuckApplication:
         logger.info("Sentiment audio listener started.")
 
     def stop_sentiment_listener(self):
+        """Stop the sentiment audio listener thread."""
         self._sentiment_running = False
         if self.sentiment_thread:
             self.sentiment_thread.join(timeout=2)
             logger.info("Sentiment audio listener stopped.")
 
     def _sentiment_audio_loop(self):
+        """Background loop to capture audio and analyze sentiment."""
         if sr is None:
             logger.warning("speech_recognition not installed; cannot run sentiment audio loop.")
             return
@@ -109,8 +113,7 @@ class DevDuckApplication:
                     if movement:
                         logger.info("[Sentiment Listener] About to trigger duck movement: %s", movement)
                         trigger_movement(movement)
-                        logger.debug(f"Triggered duck movement: {movement}")
-                        logger.info("[Sentiment Listener] Triggered duck movement: %s", movement)
+                        logger.debug("[Sentiment Listener] Triggered duck movement: %s", movement)
                     else:
                         logger.info("[Sentiment Listener] No movement detected for this sentiment.")
             except Exception as e:
@@ -118,13 +121,12 @@ class DevDuckApplication:
             time.sleep(1)
 
     def process_user_input(self, text: str) -> dict:
-        # Analyze sentiment and trigger duck movement
+        """Process user text input, analyze sentiment, and trigger duck movement."""
         sentiment_result = analyze_developer_mood(text)
         movement = sentiment_result.get('movement')
         if movement:
             trigger_movement(movement)
-            logger.debug(f"Triggered duck movement: {movement}")
-            logger.info("Triggered duck movement: %s", movement)
+            logger.debug("Triggered duck movement: %s", movement)
         sentiment = sentiment_result.get('sentiment', 'unknown')
         response = f"Sentiment: {sentiment.capitalize()}"
         return {
@@ -135,6 +137,7 @@ class DevDuckApplication:
         }
 
     def get_status(self) -> dict:
+        """Get current status of the application."""
         return {
             "is_running": self.is_running,
             "vapi_state": self.vapi_client.get_state(),
@@ -142,12 +145,14 @@ class DevDuckApplication:
         }
 
 def setup_logging():
+    """Setup logging configuration."""
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
 async def main():
+    """Main entry point to start the DevDuck application."""
     setup_logging()
     app = DevDuckApplication()
     if app.start():

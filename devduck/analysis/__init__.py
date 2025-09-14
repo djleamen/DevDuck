@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class SentimentType(Enum):
+    """Enum for sentiment types."""
     POSITIVE = "positive"
     NEUTRAL = "neutral"
     NEGATIVE = "negative"

@@ -39,8 +39,8 @@ def _find_serial_port() -> Optional[str]:
         ]):
             return p.device
     # Fallback common macOS device name (may not exist)
-    if os.path.exists("/dev/cu.usbmodem11101"):
-        return "/dev/cu.usbmodem11101"
+    if os.path.exists("<macOS device path>"):
+        return "<macOS device path>"
     return None
 
 
@@ -54,7 +54,6 @@ def _ensure_serial() -> Optional[serial.Serial]:
         try:
             port = _find_serial_port() or '/dev/cu.usbmodem21101'
             _ser = serial.Serial(port, 9600, timeout=1)
-            # Allow Arduino reset
             time.sleep(2)
             print(f"[duck] Connected to serial port: {port}")
             return _ser
@@ -64,8 +63,8 @@ def _ensure_serial() -> Optional[serial.Serial]:
             return None
 
 
-# --- CORE SEND FUNCTION ---
 def send_command(cmd: str):
+    """Send a command string to the duck hardware over serial."""
     ser = _ensure_serial()
     if not ser:
         print(f"[duck] Skipping send (no serial): {cmd}")
@@ -89,8 +88,8 @@ def surprise(): send_command("SURPRISE")
 def danceagain(): send_command("DANCEAGAIN")
 
 
-# --- MOVEMENT TRIGGER BY ACTION NAME ---
 def trigger_movement(action: str):
+    """Trigger a duck movement action by name."""
     action_map = {
         'nod': nod,
         'shake': shake,
@@ -137,8 +136,8 @@ def is_available() -> bool:
     return _ensure_serial() is not None
 
 
-# --- CLEANUP FUNCTION ---
 def close_connection():
+    """Close the serial connection if open."""
     global _ser
     try:
         if _ser:

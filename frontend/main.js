@@ -1,3 +1,8 @@
+/**
+ * Main process script for the Electron application.
+ * This script creates the main application window and configures its properties.
+ */
+
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
@@ -17,9 +22,7 @@ function createWindow() {
     });
 
     mainWindow.loadFile('renderer/index.html');
-
     mainWindow.setMenuBarVisibility(false);
-
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
