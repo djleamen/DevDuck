@@ -1,10 +1,9 @@
+
 /**
  * DevDuck UI Renderer with VAPI Voice Integration
  * 
  * Manages the frontend interactions and communicates with the backend API.
  */
-
-require('dotenv').config();
 
 let Vapi;
 
@@ -18,7 +17,9 @@ try {
 }
 class DevDuckUI {
     constructor() {
-        this.apiBase = process.env.VAPI_WEBHOOK_URL || 'http://localhost:8001';
+    this.apiBase = 'http://localhost:8001';
+    this.vapiPublicKey = '0409a72a-a2b0-4025-864b-000aa7b36e54';
+    this.vapiAssistantId = '4281ec0c-ca9b-4fa5-ae8e-22f236a1d66b';
         this.isListening = false;
         this.vapi = null;
         this.isCallActive = false;
@@ -28,6 +29,17 @@ class DevDuckUI {
         this.loadHistory();
         this.updateStatus('Ready');
         this.initializeVapi();
+    }
+
+    async post(path) {
+        try {
+            const res = await fetch(`${this.apiBase}${path}`, { method: 'POST' });
+            if (!res.ok) {
+                console.warn(`POST ${path} failed:`, res.status);
+            }
+        } catch (e) {
+            console.warn(`POST ${path} error:`, e.message);
+        }
     }
 
     initializeElements() {
@@ -72,9 +84,9 @@ class DevDuckUI {
 
         try {
             console.log('VAPI found, attempting initialization...');
-            console.log('Public key: ', process.env.VAPI_PUBLIC_KEY);
+            console.log('Public key: ', this.vapiPublicKey);
 
-            this.vapi = new VapiClass(process.env.VAPI_PUBLIC_KEY);
+            this.vapi = new VapiClass(this.vapiPublicKey);
 
             console.log('VAPI instance created successfully:', this.vapi);
             console.log('VAPI instance methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(this.vapi)));
@@ -84,6 +96,8 @@ class DevDuckUI {
                 this.isCallActive = true;
                 this.updateVoiceButton();
                 this.updateStatus('🎤 Connected to DevDuck - Speak now!');
+                // greet on call start
+                this.post('/duck/gesture/greet');
             });
 
             this.vapi.on('call-end', () => {
@@ -91,17 +105,24 @@ class DevDuckUI {
                 this.isCallActive = false;
                 this.updateVoiceButton();
                 this.updateStatus('Call ended');
+                // ensure we stop any animation
+                this.post('/duck/talk/stop');
                 setTimeout(() => this.loadHistory(), 1000);
             });
 
             this.vapi.on('speech-start', () => {
                 console.log('Assistant started speaking');
                 this.updateStatus('🦆 DevDuck is speaking...');
+                // start talk animation
+                this.post('/duck/talk/start');
             });
 
             this.vapi.on('speech-end', () => {
                 console.log('Assistant stopped speaking');
                 this.updateStatus('🎤 Your turn to speak');
+                // stop talk animation and nod
+                this.post('/duck/talk/stop');
+                this.post('/duck/gesture/nod');
             });
 
             this.vapi.on('message', (message) => {
@@ -161,7 +182,7 @@ class DevDuckUI {
     async toggleVoiceCall() {
         console.log('toggleVoiceCall called');
         console.log('this.vapi:', this.vapi);
-        
+
         if (!this.vapi) {
             console.log('VAPI not available');
             this.updateStatus('Voice feature not available - VAPI not initialized');
@@ -176,8 +197,25 @@ class DevDuckUI {
             } else {
                 console.log('Starting call...');
                 this.updateStatus('Starting voice call...');
-                
-                await this.vapi.start(process.env.VAPI_ASSISTANT_ID || 'default');
+
+                // Call backend to toggle listening ON
+                try {
+                    const response = await fetch(`${this.apiBase}/listening/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    this.isListening = data.isListening;
+                    this.updateStatus(this.isListening ? 'Listening...' : 'Not listening');
+                } catch (apiErr) {
+                    console.error('Error toggling listening on backend:', apiErr);
+                    this.updateStatus('Warning: Could not notify backend');
+                }
+
+                await this.vapi.start(this.vapiAssistantId);
             }
         } catch (error) {
             console.error('Voice call error:', error);

@@ -4,20 +4,18 @@ DevDuck utilities and configuration management.
 Provides configuration management, logging, and utility functions for the project.
 """
 
+import aiofiles
 import json
 import logging
 import os
 import sys
+import yaml
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
-import aiofiles
-
 logger = logging.getLogger(__name__)
-
 
 class LogLevel(Enum):
     DEBUG = "DEBUG"

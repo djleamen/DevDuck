@@ -1,3 +1,7 @@
+"""
+Setup script for the DevDuck project.
+"""
+
 from setuptools import setup, find_packages
 
 with open("README.md", "r", encoding="utf-8") as fh:

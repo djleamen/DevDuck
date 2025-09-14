@@ -9,6 +9,18 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import json
+import threading
+import time
+
+from devduck.hardware.usb_communication import (
+    nod,
+    shake,
+    left,
+    right,
+    greeting_routine,
+    good_luck_routine,
+    is_available,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +37,52 @@ app.add_middleware(
 is_listening = False
 conversation_history: List[Dict[str, Any]] = []
 context_store = {}
+
+# --- Duck talk animation management ---
+_talk_stop_event = threading.Event()
+_talk_thread: threading.Thread | None = None
+
+
+def _talk_loop():
+    """Simple loop to animate the duck while assistant is speaking.
+    Uses small, non-blocking movements in sequence until stopped.
+    """
+    # Small delay to avoid jitter from rapid start/stop
+    time.sleep(0.05)
+    while not _talk_stop_event.is_set():
+        # Alternate subtle motions to mimic speaking, with longer gaps
+        left()
+        if _talk_stop_event.wait(2.0):
+            break
+        right()
+        if _talk_stop_event.wait(2.0):
+            break
+        nod()
+        if _talk_stop_event.wait(2.0):
+            break
+
+
+def _start_talking_animation():
+    global _talk_thread
+    if not is_available():
+        logger.debug("Duck hardware not available; skipping talk animation start")
+        return
+    if _talk_thread and _talk_thread.is_alive():
+        # already animating
+        return
+    _talk_stop_event.clear()
+    _talk_thread = threading.Thread(target=_talk_loop, daemon=True)
+    _talk_thread.start()
+    logger.info("Duck talk animation started")
+
+
+def _stop_talking_animation():
+    _talk_stop_event.set()
+    logger.info("Duck talk animation stop requested")
+
+
+def _fire_and_forget(fn):
+    threading.Thread(target=fn, daemon=True).start()
 
 
 # Pydantic models for VAPI webhook requests
@@ -226,7 +284,10 @@ async def root():
             '/history/clear',
             '/status',
             '/health',
-            '/webhook/vapi'
+            '/webhook/vapi',
+            '/duck/talk/start',
+            '/duck/talk/stop',
+            '/duck/gesture/{name}'
         ]
     }
 
@@ -239,7 +300,8 @@ async def vapi_webhook(request: Request):
         
         message = body.get('message', {})
         message_type = message.get('type', '')
-        
+        normalized = str(message_type).lower().replace('_', '-')
+
         if message_type == 'function-call':
             function_call = message.get('functionCall', {})
             function_name = function_call.get('name', '')
@@ -255,6 +317,10 @@ async def vapi_webhook(request: Request):
             
             if function_name in handlers:
                 result = handlers[function_name](parameters)
+
+                # Optional: trigger simple gesture on encouragement
+                if function_name == 'provide_encouragement':
+                    _fire_and_forget(nod)
                 
                 conversation_history.append({
                     'time': datetime.now(timezone.utc).isoformat(),
@@ -276,21 +342,73 @@ async def vapi_webhook(request: Request):
                     "success": False
                 }
         
-        elif message_type in ['conversation-started', 'conversation-ended', 'speech-started', 'speech-ended']:
+        elif normalized in ['conversation-started', 'conversation-start', 'call-started',
+                            'conversation-ended', 'conversation-end', 'call-ended',
+                            'speech-started', 'speech-start', 'speech-begin',
+                            'speech-ended', 'speech-end', 'speech-stop']:
             conversation_history.append({
                 'time': datetime.now(timezone.utc).isoformat(),
                 'type': 'conversation_event',
                 'event': message_type,
                 'message': message
             })
-            
+
+            # React to events with duck movements/animations
+            try:
+                if normalized in ['conversation-started', 'conversation-start', 'call-started']:
+                    _fire_and_forget(greeting_routine)
+                    # warm up serial for low latency before speech
+                    is_available()
+                elif normalized in ['speech-started', 'speech-start', 'speech-begin']:
+                    _start_talking_animation()
+                elif normalized in ['speech-ended', 'speech-end', 'speech-stop']:
+                    _stop_talking_animation()
+                    # Acknowledge with a small nod
+                    _fire_and_forget(nod)
+                elif normalized in ['conversation-ended', 'conversation-end', 'call-ended']:
+                    _stop_talking_animation()
+            except Exception as e:  # pragma: no cover - best-effort movement
+                logger.warning("Duck movement error on event %s: %s", message_type, e)
+
             return {"success": True, "message": f"Event {message_type} logged"}
-        
+
         return {"success": True, "message": "Webhook received"}
         
     except Exception as e:
         logger.error("Error processing VAPI webhook: %s", str(e))
         raise HTTPException(status_code=500, detail=f"Webhook processing error: {str(e)}") from e
+
+
+@app.post("/duck/talk/start")
+async def duck_talk_start():
+    _start_talking_animation()
+    return {"success": True, "message": "Duck talk animation started"}
+
+
+@app.post("/duck/talk/stop")
+async def duck_talk_stop():
+    _stop_talking_animation()
+    return {"success": True, "message": "Duck talk animation stopped"}
+
+
+@app.post("/duck/gesture/{name}")
+async def duck_gesture(name: str):
+    name_l = (name or "").lower()
+    if name_l == "nod":
+        _fire_and_forget(nod)
+    elif name_l == "shake":
+        _fire_and_forget(shake)
+    elif name_l == "left":
+        _fire_and_forget(left)
+    elif name_l == "right":
+        _fire_and_forget(right)
+    elif name_l == "greet":
+        _fire_and_forget(greeting_routine)
+    elif name_l == "goodluck":
+        _fire_and_forget(good_luck_routine)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown gesture: {name}")
+    return {"success": True, "message": f"Gesture '{name_l}' triggered"}
 
 
 @app.post("/get_code_snippet")
@@ -300,14 +418,14 @@ def get_code_snippet(request: FunctionCallRequest):
         raise HTTPException(status_code=400, detail="File path is required")
 
     try:
-        with open(file_path, "r") as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             code_snippet = file.read()
         return {"success": True, "code_snippet": code_snippet}
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="File not found")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="File not found") from exc
     except Exception as e:
-        logger.error(f"Error reading file: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error("Error reading file: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
 @app.post("/store_context")
