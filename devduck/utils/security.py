@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class SecurityConfig:
+    """Manages security settings for URLs and protocols."""
     def __init__(self, force_https: bool = True):
         self.force_https = force_https
         self.allowed_local_hosts = ['localhost', '127.0.0.1', '::1']
@@ -21,6 +22,7 @@ class SecurityConfig:
         return any(host in parsed_url.netloc for host in self.allowed_local_hosts)
 
     def _validate_websocket_protocol(self, parsed_url, is_local: bool, allow_local_http: bool) -> bool:
+        """Validate WebSocket protocol."""
         if parsed_url.scheme == 'ws':
             if is_local and allow_local_http:
                 logger.warning(
@@ -32,6 +34,7 @@ class SecurityConfig:
         return True
 
     def _validate_http_protocol(self, parsed_url, is_local: bool, allow_local_http: bool) -> bool:
+        """Validate HTTP/HTTPS protocol."""
         if parsed_url.scheme == 'http':
             if is_local and allow_local_http:
                 logger.warning("Using HTTP for local URL: %s",
@@ -43,6 +46,7 @@ class SecurityConfig:
         return True
 
     def validate_url(self, url: str, allow_local_http: bool = False) -> bool:
+        """Validate a given URL for security compliance."""
         try:
             parsed = urlparse(url)
             is_local = self._is_local_url(parsed)
@@ -60,6 +64,7 @@ class SecurityConfig:
             return False
 
     def secure_url(self, url: str) -> str:
+        """Convert URL to secure protocol if needed."""
         try:
             if url.startswith('http://'):
                 secure_url = url.replace('http://', 'https://', 1)
@@ -76,6 +81,7 @@ class SecurityConfig:
             return url
 
     def get_secure_config(self) -> Dict[str, Any]:
+        """Get security settings for various components."""
         is_production = os.getenv('NODE_ENV') == 'production'
 
         return {
@@ -100,6 +106,7 @@ class SecurityConfig:
         }
 
     def validate_webhook_url(self, webhook_url: str) -> bool:
+        """Validate the webhook URL for security compliance."""
         if not webhook_url or webhook_url == os.getenv("VAPI_WEBHOOK_URL"):
             logger.error("Webhook URL not configured")
             return False
@@ -117,6 +124,7 @@ class SecurityConfig:
 
 
 def get_security_config() -> SecurityConfig:
+    """Get global security configuration."""
     force_https = os.getenv('DEVDUCK_FORCE_HTTPS', 'true').lower() == 'true'
     return SecurityConfig(force_https=force_https)
 

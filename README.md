@@ -24,7 +24,7 @@ pip install -r requirements.txt
 python scripts/start_api.py
 ```
 
-The API will be available at: `http://localhost:8000`
+The API will be available at: `http://localhost:8001`
 
 ### 3. Start the Frontend
 
@@ -35,31 +35,64 @@ npm install
 npm start
 ```
 
+### 4. Start the API gateway
+
+```bash
+ngrok http 8001
+```
+
+Don't forget to update VAPI variables in `renderer.js`!
+
 ## API Endpoints
 
+- `GET /` - Root; lists available endpoints
 - `POST /listening/toggle` - Toggle listening state
 - `GET /history` - Get conversation history
 - `POST /history/clear` - Clear conversation history
 - `GET /status` - Get current system status
 - `GET /health` - Health check
+- `POST /webhook/vapi` - VAPI webhook endpoint
+- `POST /duck/talk/start` - Start duck talking animation
+- `POST /duck/talk/stop` - Stop duck talking animation
+- `POST /duck/gesture/{name}` - Trigger a gesture (`nod`, `shake`, `left`, `right`, `greet`, `goodluck`)
+- `POST /get_code_snippet` - Read and return file contents
+- `POST /store_context` - Store a snippet/context payload
+- `POST /retrieve_context` - Retrieve a stored context by snippet id
 
 ## Project Structure
 
 ```
 DevDuck/
-├── devduck/                 # Python backend
-│   ├── ai/                  # VAPI integration
-│   ├── analysis/            # Sentiment analysis
-│   ├── api/                 # FastAPI endpoints
-│   ├── hardware/            # USB/Arduino communication
-│   └── utils/               # Utilities
-├── frontend/                # Electron desktop app
-│   ├── renderer/            # Frontend UI files
-│   ├── main.js              # Electron main process
-│   └── package.json         # Frontend dependencies
 ├── arduino/                 # Arduino servo controller
-├── scripts/                 # Startup scripts
-└── requirements.txt         # Python dependencies
+│   └── devduck_controller/
+│       └── devduck_controller.ino
+├── devduck/                 # Python backend
+│   ├── __init__.py
+│   ├── main.py
+│   ├── ai/
+│   │   └── __init__.py      # VAPI integration hooks
+│   ├── analysis/
+│   │   └── __init__.py      # Sentiment analysis
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── assistant_config.py
+│   │   └── vapi_webhook.py  # FastAPI app & endpoints
+│   ├── hardware/
+│   │   ├── __init__.py
+│   │   └── usb_communication.py
+│   └── utils/
+│       ├── __init__.py
+│       └── security.py
+├── frontend/                # Electron desktop app
+│   ├── main.js              # Electron main process
+│   ├── package.json         # Frontend dependencies
+│   ├── package-lock.json
+│   └── renderer/            # Frontend UI files
+│       ├── index.html
+│       ├── renderer.js
+│       └── styles.css
+├── scripts/
+│   └── start_api.py         # Starts FastAPI on port 8001
 ```
 
 ## Hardware Setup

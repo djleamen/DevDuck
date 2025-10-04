@@ -13,13 +13,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
 import aiofiles
+import yaml
 
 logger = logging.getLogger(__name__)
 
-
 class LogLevel(Enum):
+    """Logging levels for the application."""
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -29,6 +29,7 @@ class LogLevel(Enum):
 
 @dataclass
 class HardwareConfig:
+    """Configuration for DevDuck hardware."""
     port: Optional[str] = None
     baudrate: int = 9600
     auto_detect: bool = True
@@ -41,14 +42,11 @@ class HardwareConfig:
                 "head_center": 90,
                 "head_left": 45,
                 "head_right": 135,
-                "wing_left_up": 0,
-                "wing_left_down": 180,
-                "wing_right_up": 180,
-                "wing_right_down": 0
             }
 
 @dataclass
 class AIConfig:
+    """Configuration for AI and VAPI integration."""
     vapi_api_key: str = ""
     assistant_id: Optional[str] = None
     voice_model: str = "vapi-default"
@@ -60,6 +58,7 @@ class AIConfig:
 
 @dataclass
 class AnalysisConfig:
+    """Configuration for code analysis features."""
     supported_languages: Optional[List[str]] = None
     exclude_patterns: Optional[List[str]] = None
     max_file_size_mb: int = 10
@@ -68,6 +67,7 @@ class AnalysisConfig:
     complexity_threshold: float = 10.0
 
     def __post_init__(self):
+        """Set default values if not provided."""
         if self.supported_languages is None:
             self.supported_languages = [
                 "python", "javascript", "typescript", "java", "cpp", "c"]
@@ -85,6 +85,7 @@ class AnalysisConfig:
 
 @dataclass
 class UIConfig:
+    """Configuration for the user interface."""
     window_width: int = 400
     window_height: int = 600
     always_on_top: bool = True
@@ -95,6 +96,7 @@ class UIConfig:
 
 @dataclass
 class DevDuckConfig:
+    """Main configuration class for DevDuck."""
     hardware: HardwareConfig
     ai: AIConfig
     analysis: AnalysisConfig
@@ -118,9 +120,9 @@ class DevDuckConfig:
         )
 
 class ConfigManager:
-
+    """Manages loading, saving, and validating the DevDuck configuration."""
     def __init__(self, config_dir: Optional[str] = None):
-
+        """Initialize the configuration manager."""
         self.config_dir = Path(
             config_dir) if config_dir else self._get_default_config_dir()
         self.config_file = self.config_dir / "config.yaml"
@@ -201,7 +203,7 @@ class ConfigManager:
         )
 
     def validate_config(self, config: DevDuckConfig) -> List[str]:
-        # TODO: Implement configuration validation
+        """Validate the configuration and return a list of errors, if any."""
         errors = []
 
         if not config.ai.vapi_api_key:
@@ -219,9 +221,11 @@ class ConfigManager:
         return errors
 
     def get_config(self) -> Optional[DevDuckConfig]:
+        """Get the current configuration."""
         return self.config
 
     def update_config(self, updates: Dict[str, Any]) -> bool:
+        """Update the current configuration with new values."""
         if not self.config:
             logger.error("No configuration loaded to update")
             return False
@@ -245,7 +249,6 @@ class ConfigManager:
             return False
 
     def _deep_update(self, base_dict: Dict[str, Any], update_dict: Dict[str, Any]) -> None:
-        # Implemented deep dictionary update
         """Recursively update a dictionary with another dictionary."""
         for key, value in update_dict.items():
             if key in base_dict and isinstance(base_dict[key], dict) and isinstance(value, dict):
@@ -254,11 +257,11 @@ class ConfigManager:
                 base_dict[key] = value
 
 class Logger:
+    """Logger setup and management for the application."""
     @staticmethod
     def setup_logging(log_level: LogLevel = LogLevel.INFO,
                       log_file: Optional[str] = None,
                       enable_console: bool = True) -> None:
-        # Implemented logging setup
         """Set up logging with the specified log level and handlers."""
         root_logger = logging.getLogger()
         root_logger.handlers.clear()
@@ -282,11 +285,11 @@ class Logger:
 
     @staticmethod
     def get_logger(name: str) -> logging.Logger:
+        """Get a named logger."""
         return logging.getLogger(name)
 
 
 def get_project_root() -> Path:
-    # Implemented project root detection
     """Detect the project root by looking for setup.py or pyproject.toml."""
     current_path = Path(__file__).parent
     while current_path.parent != current_path:
@@ -297,7 +300,6 @@ def get_project_root() -> Path:
 
 
 def ensure_directory_exists(directory: Path) -> bool:
-    # Implemented directory creation
     """Ensure that a directory exists, creating it if necessary."""
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -308,7 +310,6 @@ def ensure_directory_exists(directory: Path) -> bool:
 
 
 def load_json_file(file_path: Path) -> Optional[Dict[str, Any]]:
-    # Implemented JSON file loading
     """Load a JSON file and return its contents as a dictionary."""
     try:
         with file_path.open(mode='r', encoding='utf-8') as f:
@@ -319,7 +320,6 @@ def load_json_file(file_path: Path) -> Optional[Dict[str, Any]]:
 
 
 def save_json_file(file_path: Path, data: Dict[str, Any], indent: int = 2) -> bool:
-    # Implemented JSON file saving
     """Save a dictionary to a JSON file."""
     try:
         with file_path.open(mode='w', encoding='utf-8') as f:
@@ -330,7 +330,6 @@ def save_json_file(file_path: Path, data: Dict[str, Any], indent: int = 2) -> bo
         return False
 
 
-# Implemented format_duration function
 def format_duration(seconds: int) -> str:
     """Format a duration in seconds into a human-readable string."""
     hours, remainder = divmod(seconds, 3600)
