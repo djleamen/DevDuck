@@ -1,6 +1,16 @@
 # DevDuck 🦆
 
-A simplified USB-connected AI rubber duck that listens to developers and provides helpful responses through voice interaction.
+Rubber duck debugging is a beloved hacker tradition — just by explaining your code out loud, you often discover the solution. We asked ourselves: what if the duck could actually respond? With one of us passionate about hardware (Mechatronics Engineering) and the other passionate about AI/ML (Computer Science), we set out to bring a rubber duck to life.
+
+DevDuck is a sentiment-aware chatbot paired with a physical duck: 
+
+-🗣️ Hackers chat with DevDuck like they would with a debugging buddy.
+
+-🤖 DevDuck analyzes the tone and sentiment of the conversation.
+
+-🦆 The physical duck reacts with movements that match the mood — encouragement if you’re frustrated, celebration if you’re excited, calm nods when things make sense.
+
+-💬 On top of that, DevDuck can support general coding-related discussions and is designed to expand into deeper debugging assistance.
 
 ## Features
 
