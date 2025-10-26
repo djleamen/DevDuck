@@ -110,7 +110,7 @@ When adding or modifying endpoints, follow the existing pattern in `vapi_webhook
 
 ## Testing
 
-- **Framework**: pytest (included in requirements.txt)
+- **Framework**: pytest (available in requirements.txt for future test implementation)
 - **Location**: Tests are not currently implemented in the repository
 - **When Adding Tests**: Place test files adjacent to the code they test or in a `tests/` directory
 - **Naming**: Use `test_*.py` or `*_test.py` naming convention
