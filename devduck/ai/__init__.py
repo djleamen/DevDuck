@@ -34,7 +34,7 @@ class VAPIClient:
             self.is_connected = True
             logger.info("Conversation started")
             return True
-        except (ConnectionError, OSError, ValueError) as e:
+        except (OSError, ValueError) as e:
             logger.error("Failed to start conversation: %s", e)
             self.conversation_state = ConversationState.ERROR
             return False
@@ -46,7 +46,7 @@ class VAPIClient:
             self.is_connected = False
             logger.info("Conversation stopped")
             return True
-        except (ConnectionError, OSError) as e:
+        except (OSError) as e:
             logger.error("Failed to stop conversation: %s", e)
             return False
 
