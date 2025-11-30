@@ -30,13 +30,13 @@
     </div>
 
     <script>
-        if (typeof window.Vapi === 'undefined') {
+        if (globalThis.Vapi === undefined) {
             console.log('Loading VAPI SDK dynamically...');
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/@vapi-ai/web@latest/dist/index.js';
             script.onload = () => {
                 console.log('VAPI SDK loaded from CDN');
-                window.vapiLoaded = true;
+                globalThis.vapiLoaded = true;
             };
             script.onerror = (error) => {
                 console.error('Failed to load VAPI SDK from CDN:', error);

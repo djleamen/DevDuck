@@ -4,7 +4,11 @@
  */
 
 const { app, BrowserWindow } = require('electron');
-const path = require('path');
+const path = require('node:path');
+const dotenv = require('dotenv');
+
+// Load environment variables from .env file in project root
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 let mainWindow;
 
@@ -13,9 +17,10 @@ function createWindow() {
         width: 500,
         height: 700,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-            webSecurity: false
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            webSecurity: true
         },
         resizable: false,
         titleBarStyle: 'hiddenInset'
@@ -28,7 +33,8 @@ function createWindow() {
     });
 }
 
-app.whenReady().then(createWindow);
+await app.whenReady();
+createWindow();
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

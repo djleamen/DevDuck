@@ -20,6 +20,7 @@
     "electron": "^35.7.5"
   },
   "dependencies": {
-    "@vapi-ai/web": "^2.3.10"
+    "@vapi-ai/web": "^2.3.10",
+    "dotenv": "^16.4.5"
   }
 }

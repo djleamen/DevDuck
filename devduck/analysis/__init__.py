@@ -18,7 +18,7 @@ class SentimentType(Enum):
 
 class BasicSentimentAnalyzer:
     """Basic sentiment analysis for developer mood detection."""
-    
+
     def __init__(self):
         self.positive_keywords = ['good', 'great', 'excellent', 'working', 'fixed', 'solved']
         self.negative_keywords = ['error', 'bug', 'broken', 'stuck', 'frustrated', 'problem']

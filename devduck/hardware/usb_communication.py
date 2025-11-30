@@ -145,4 +145,3 @@ def close_connection():
             print("[duck] Connection closed.")
     finally:
         _ser = None
-

@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from devduck.analysis import analyze_developer_mood
 from devduck.hardware.usb_communication import (good_luck_routine,
                                                 greeting_routine, is_available,
                                                 left, nod, right, shake)
@@ -29,55 +30,85 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-is_listening = False
-conversation_history: List[Dict[str, Any]] = []
-context_store = {}
+# --- Application state management ---
+
+
+class AppState:
+    """Manages application state without using global variables."""
+
+    def __init__(self):
+        self.is_listening = False
+        self.conversation_history: List[Dict[str, Any]] = []
+        self.context_store: Dict[str, Any] = {}
+
+
+# Create a single instance to manage application state
+app_state = AppState()
 
 # --- Duck talk animation management ---
-_talk_stop_event = threading.Event()
-_talk_thread: threading.Thread | None = None
 
 
-def _talk_loop():
-    """Simple loop to animate the duck while assistant is speaking.
-    Uses small, non-blocking movements in sequence until stopped.
-    """
-    # Small delay to avoid jitter from rapid start/stop
-    time.sleep(0.05)
-    while not _talk_stop_event.is_set():
-        # Alternate subtle motions to mimic speaking, with longer gaps
-        left()
-        if _talk_stop_event.wait(2.0):
-            break
-        right()
-        if _talk_stop_event.wait(2.0):
-            break
-        nod()
-        if _talk_stop_event.wait(2.0):
-            break
+class DuckAnimationManager:
+    """Manages duck talk animation state without using global variables."""
+
+    def __init__(self):
+        self.stop_event = threading.Event()
+        self.thread: Optional[threading.Thread] = None
+
+    def _talk_loop(self):
+        """Simple loop to animate the duck while assistant is speaking.
+        Uses small, non-blocking movements in sequence until stopped.
+        """
+        # Small delay to avoid jitter from rapid start/stop
+        time.sleep(0.05)
+        while not self.stop_event.is_set():
+            # Alternate subtle motions to mimic speaking, with longer gaps
+            left()
+            if self.stop_event.wait(2.0):
+                break
+            right()
+            if self.stop_event.wait(2.0):
+                break
+            nod()
+            if self.stop_event.wait(2.0):
+                break
+
+    def start_talking_animation(self):
+        """Start the duck talking animation."""
+        if not is_available():
+            logger.debug(
+                "Duck hardware not available; skipping talk animation start")
+            return
+        if self.thread and self.thread.is_alive():
+            # already animating
+            return
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self._talk_loop, daemon=True)
+        self.thread.start()
+        logger.info("Duck talk animation started")
+
+    def stop_talking_animation(self):
+        """Stop the duck talking animation."""
+        self.stop_event.set()
+        logger.info("Duck talk animation stop requested")
+
+
+# Create a single instance to manage duck animations
+duck_animation = DuckAnimationManager()
 
 
 def _start_talking_animation():
-    global _talk_thread
-    if not is_available():
-        logger.debug(
-            "Duck hardware not available; skipping talk animation start")
-        return
-    if _talk_thread and _talk_thread.is_alive():
-        # already animating
-        return
-    _talk_stop_event.clear()
-    _talk_thread = threading.Thread(target=_talk_loop, daemon=True)
-    _talk_thread.start()
-    logger.info("Duck talk animation started")
+    """Start the duck talk animation."""
+    duck_animation.start_talking_animation()
 
 
 def _stop_talking_animation():
-    _talk_stop_event.set()
-    logger.info("Duck talk animation stop requested")
+    """Stop the duck talk animation."""
+    duck_animation.stop_talking_animation()
 
 
 def _fire_and_forget(fn):
+    """Run a function in a separate daemon thread."""
     threading.Thread(target=fn, daemon=True).start()
 
 
@@ -153,7 +184,6 @@ def handle_suggest_break(params: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_analyze_sentiment(params: Dict[str, Any]) -> Dict[str, Any]:
     """Handle sentiment analysis requests"""
-    from devduck.analysis import analyze_developer_mood
 
     text = params.get('text', '')
     context = params.get('context', '')
@@ -180,8 +210,8 @@ def handle_get_project_status(_params: Dict[str, Any]) -> Dict[str, Any]:
         "overall_health": "good",
         "active_issues": 0,
         "last_analysis": datetime.now(timezone.utc).isoformat(),
-        "listening_status": is_listening,
-        "conversation_count": len(conversation_history)
+        "listening_status": app_state.is_listening,
+        "conversation_count": len(app_state.conversation_history)
     }
 
     return {
@@ -237,33 +267,32 @@ def handle_provide_encouragement(params: Dict[str, Any]) -> Dict[str, Any]:
 @app.post("/listening/toggle")
 async def toggle_listening():
     """Toggle the listening state."""
-    global is_listening
-    is_listening = not is_listening
-    status = 'listening' if is_listening else 'stopped'
+    app_state.is_listening = not app_state.is_listening
+    status = 'listening' if app_state.is_listening else 'stopped'
 
-    conversation_history.append({
+    app_state.conversation_history.append({
         'time': datetime.now(timezone.utc).isoformat(),
         'event': status,
         'type': 'system'
     })
 
     logger.info("Listening toggled to: %s", status)
-    return {'isListening': is_listening, 'status': status}
+    return {'isListening': app_state.is_listening, 'status': status}
 
 
 @app.get("/history")
 async def get_history():
     """Get the conversation history."""
     return {
-        'history': conversation_history,
-        'count': len(conversation_history)
+        'history': app_state.conversation_history,
+        'count': len(app_state.conversation_history)
     }
 
 
 @app.post("/history/clear")
 async def clear_history():
     """Clear the conversation history."""
-    conversation_history.clear()
+    app_state.conversation_history.clear()
     logger.info("Conversation history cleared")
     return {'message': 'History cleared', 'count': 0}
 
@@ -272,8 +301,8 @@ async def clear_history():
 async def get_status():
     """Get current status including listening state and history count."""
     return {
-        'isListening': is_listening,
-        'historyCount': len(conversation_history),
+        'isListening': app_state.is_listening,
+        'historyCount': len(app_state.conversation_history),
         'timestamp': datetime.now(timezone.utc).isoformat()
     }
 
@@ -304,6 +333,26 @@ async def root():
             '/retrieve_context'
         ]
     }
+
+
+def _handle_conversation_event(normalized: str, message_type: str):
+    """Handle conversation event with duck movements/animations."""
+    try:
+        if normalized in ['conversation-started', 'conversation-start', 'call-started']:
+            _fire_and_forget(greeting_routine)
+            # warm up serial for low latency before speech
+            is_available()
+        elif normalized in ['speech-started', 'speech-start', 'speech-begin']:
+            _start_talking_animation()
+        elif normalized in ['speech-ended', 'speech-end', 'speech-stop']:
+            _stop_talking_animation()
+            # Acknowledge with a small nod
+            _fire_and_forget(nod)
+        elif normalized in ['conversation-ended', 'conversation-end', 'call-ended']:
+            _stop_talking_animation()
+    except (OSError, RuntimeError) as e:  # pragma: no cover - best-effort movement
+        logger.warning(
+            "Duck movement error on event %s: %s", message_type, e)
 
 
 @app.post("/webhook/vapi")
@@ -337,7 +386,7 @@ async def vapi_webhook(request: Request):
                 if function_name == 'provide_encouragement':
                     _fire_and_forget(nod)
 
-                conversation_history.append({
+                app_state.conversation_history.append({
                     'time': datetime.now(timezone.utc).isoformat(),
                     'type': 'function_call',
                     'function': function_name,
@@ -361,7 +410,7 @@ async def vapi_webhook(request: Request):
                             'conversation-ended', 'conversation-end', 'call-ended',
                             'speech-started', 'speech-start', 'speech-begin',
                             'speech-ended', 'speech-end', 'speech-stop']:
-            conversation_history.append({
+            app_state.conversation_history.append({
                 'time': datetime.now(timezone.utc).isoformat(),
                 'type': 'conversation_event',
                 'event': message_type,
@@ -369,22 +418,7 @@ async def vapi_webhook(request: Request):
             })
 
             # React to events with duck movements/animations
-            try:
-                if normalized in ['conversation-started', 'conversation-start', 'call-started']:
-                    _fire_and_forget(greeting_routine)
-                    # warm up serial for low latency before speech
-                    is_available()
-                elif normalized in ['speech-started', 'speech-start', 'speech-begin']:
-                    _start_talking_animation()
-                elif normalized in ['speech-ended', 'speech-end', 'speech-stop']:
-                    _stop_talking_animation()
-                    # Acknowledge with a small nod
-                    _fire_and_forget(nod)
-                elif normalized in ['conversation-ended', 'conversation-end', 'call-ended']:
-                    _stop_talking_animation()
-            except Exception as e:  # pragma: no cover - best-effort movement
-                logger.warning(
-                    "Duck movement error on event %s: %s", message_type, e)
+            _handle_conversation_event(normalized, message_type)
 
             return {"success": True, "message": f"Event {message_type} logged"}
 
@@ -460,7 +494,7 @@ def store_context(request: FunctionCallRequest):
         raise HTTPException(
             status_code=400, detail="Snippet ID and context are required")
 
-    context_store[snippet_id] = context
+    app_state.context_store[snippet_id] = context
     return {"success": True, "message": "Context stored successfully"}
 
 
@@ -472,7 +506,7 @@ def retrieve_context(request: FunctionCallRequest):
     if not snippet_id:
         raise HTTPException(status_code=400, detail="Snippet ID is required")
 
-    context = context_store.get(snippet_id)
+    context = app_state.context_store.get(snippet_id)
     if not context:
         raise HTTPException(status_code=404, detail="Context not found")
 

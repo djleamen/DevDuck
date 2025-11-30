@@ -16,19 +16,22 @@ try {
     console.log('Will attempt to use CDN version from window.Vapi');
 }
 class DevDuckUI {
+    apiBase = 'http://localhost:8001';
+    vapiPublicKey = globalThis.electronAPI?.vapiPublicKey || '';
+    vapiAssistantId = globalThis.electronAPI?.vapiAssistantId || '';
+    isListening = false;
+    vapi = null;
+    isCallActive = false;
+    
     constructor() {
-    this.apiBase = 'http://localhost:8001';
-    this.vapiPublicKey = '' // redacted... JS can't use env vars
-    this.vapiAssistantId = '' // redacted... JS can't use env vars
-        this.isListening = false;
-        this.vapi = null;
-        this.isCallActive = false;
-        
         this.initializeElements();
         this.setupEventListeners();
-        this.loadHistory();
         this.updateStatus('Ready');
         this.initializeVapi();
+    }
+    
+    async initialize() {
+        await this.loadHistory();
     }
 
     initializeElements() {
@@ -44,13 +47,13 @@ class DevDuckUI {
 
     initializeVapi() {
         console.log('=== VAPI Initialization Debug ===');
-        console.log('window.Vapi:', typeof window.Vapi);
+        console.log('globalThis.Vapi:', typeof globalThis.Vapi);
         console.log('Imported Vapi:', typeof Vapi);
-        console.log('window.vapiLoaded:', window.vapiLoaded);
-        console.log('window keys containing "vapi":', Object.keys(window).filter(k => k.toLowerCase().includes('vapi')));
-        console.log('window keys containing "Vapi":', Object.keys(window).filter(k => k.includes('Vapi')));
+        console.log('globalThis.vapiLoaded:', globalThis.vapiLoaded);
+        console.log('globalThis keys containing "vapi":', Object.keys(globalThis).filter(k => k.toLowerCase().includes('vapi')));
+        console.log('globalThis keys containing "Vapi":', Object.keys(globalThis).filter(k => k.includes('Vapi')));
         
-        const VapiClass = Vapi || window.Vapi;
+        const VapiClass = Vapi || globalThis.Vapi;
         
         console.log('VapiClass found:', !!VapiClass);
         console.log('VapiClass type:', typeof VapiClass);
@@ -190,8 +193,8 @@ class DevDuckUI {
                     const data = await response.json();
                     this.isListening = data.isListening;
                     this.updateStatus(this.isListening ? 'Listening...' : 'Not listening');
-                } catch (apiErr) {
-                    console.error('Error toggling listening on backend:', apiErr);
+                } catch (error_) {
+                    console.error('Error toggling listening on backend:', error_);
                     this.updateStatus('Warning: Could not notify backend');
                 }
 
@@ -299,7 +302,7 @@ class DevDuckUI {
     showHistoryItem(index) {
         if (!index) return;
         
-        this.updateStatus(`Selected history item #${parseInt(index) + 1}`);
+        this.updateStatus(`Selected history item #${Number.parseInt(index) + 1}`);
     }
 
     updateStatus(message) {
@@ -360,19 +363,21 @@ class DevDuckUI {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM loaded, checking for VAPI...');
-    console.log('window.Vapi:', typeof window.Vapi);
+    console.log('globalThis.Vapi:', typeof globalThis.Vapi);
     console.log('Voice button element:', document.getElementById('voice-call-btn'));
     
     const app = new DevDuckUI();
     
-    app.checkServerStatus().then(isOnline => {
+    try {
+        await app.initialize();
+        const isOnline = await app.checkServerStatus();
         if (!isOnline) {
             app.updateStatus('Warning: API server not available');
         }
-    }).catch(error => {
-        console.error('Server check failed:', error);
-        app.updateStatus('Warning: Could not check API server status');
-    });
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        app.updateStatus('Warning: Could not initialize application');
+    }
 });
