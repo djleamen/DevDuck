@@ -6,6 +6,7 @@ Main application that coordinates the API server and basic functionality.
 
 import asyncio
 import logging
+import os
 import threading
 import time
 from typing import Optional
@@ -24,7 +25,11 @@ logger = logging.getLogger(__name__)
 class DevDuckApplication:
     """Main DevDuck application class coordinating components."""
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or "demo_key"
+        self.api_key = api_key or os.environ.get("VAPI_API_KEY", "")
+        if not self.api_key:
+            logger.warning(
+                "No VAPI API key configured (set VAPI_API_KEY); "
+                "running without one")
         self.vapi_client = VAPIClient(self.api_key)
         self.is_running = False
         logger.info("DevDuck application initialized")
