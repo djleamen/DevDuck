@@ -477,20 +477,31 @@ async def duck_gesture(name: str):
 def get_code_snippet(request: FunctionCallRequest):
     """Retrieve a code snippet from a file inside the workspace root."""
     file_path = request.parameters.get("file_path")
-    if not file_path:
-        raise HTTPException(status_code=400, detail="File path is required")
+    if not file_path or not isinstance(file_path, str):
+        raise HTTPException(
+            status_code=400, detail="File path must be a non-empty string")
 
     resolved = (WORKSPACE_ROOT / file_path).resolve()
     if resolved != WORKSPACE_ROOT and WORKSPACE_ROOT not in resolved.parents:
         raise HTTPException(
             status_code=403, detail="File path is outside the workspace root")
+    if resolved.is_dir():
+        raise HTTPException(
+            status_code=400, detail="File path refers to a directory")
 
     try:
-        with open(resolved, "r", encoding="utf-8") as file:
+        # O_NOFOLLOW rejects a symlink swapped in for the final path
+        # component between the allowlist check above and this open.
+        fd = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(fd, "r", encoding="utf-8") as file:
             code_snippet = file.read()
         return {"success": True, "code_snippet": code_snippet}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="File not found") from exc
+    except OSError as exc:
+        # ELOOP from O_NOFOLLOW, a directory raced in post-check, etc.
+        raise HTTPException(
+            status_code=403, detail="File is not readable") from exc
     except Exception as e:
         logger.exception("Error reading file")
         raise HTTPException(
