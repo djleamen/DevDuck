@@ -25,7 +25,9 @@ app = FastAPI(title="DevDuck API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    # Credentials must stay disabled while origins is a wildcard; otherwise
+    # any website can make credentialed requests against this local API.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -425,7 +427,7 @@ async def vapi_webhook(request: Request):
         return {"success": True, "message": "Webhook received"}
 
     except Exception as e:
-        logger.error("Error processing VAPI webhook: %s", str(e))
+        logger.exception("Error processing VAPI webhook")
         raise HTTPException(
             status_code=500, detail=f"Webhook processing error: {str(e)}") from e
 
@@ -479,7 +481,7 @@ def get_code_snippet(request: FunctionCallRequest):
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="File not found") from exc
     except Exception as e:
-        logger.error("Error reading file: %s", e)
+        logger.exception("Error reading file")
         raise HTTPException(
             status_code=500, detail="Internal server error") from e
 
