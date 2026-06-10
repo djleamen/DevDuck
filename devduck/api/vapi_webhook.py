@@ -31,9 +31,11 @@ TOKEN_HEADER = "X-DevDuck-Token"
 WEBHOOK_PATH = "/webhook/vapi"
 UNAUTHENTICATED_PATHS = {"/", "/health"}
 DEFAULT_API_TOKEN_PLACEHOLDER = "replace_with_a_strong_random_token"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Load local .env so uvicorn/python -m startup paths receive configured values.
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+# PROJECT_ROOT follows the repository layout: <root>/devduck/api/vapi_webhook.py.
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 def _load_api_token() -> str:
@@ -41,8 +43,8 @@ def _load_api_token() -> str:
     configured_token = os.getenv("DEVDUCK_API_TOKEN", "").strip()
     if configured_token == DEFAULT_API_TOKEN_PLACEHOLDER:
         raise RuntimeError(
-            "DEVDUCK_API_TOKEN must be changed from the placeholder value "
-            "in .env.example before starting the API."
+            "DEVDUCK_API_TOKEN in your .env/environment must be changed "
+            "from the placeholder value before starting the API."
         )
     if configured_token:
         return configured_token

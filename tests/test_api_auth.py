@@ -65,6 +65,9 @@ def test_webhook_token_override(monkeypatch):
 def test_placeholder_token_rejected(monkeypatch):
     app = _reload_app(monkeypatch, "replace_with_a_strong_random_token")
 
-    with pytest.raises(RuntimeError, match="placeholder value"):
+    with pytest.raises(
+        RuntimeError,
+        match="DEVDUCK_API_TOKEN in your .env/environment must be changed",
+    ):
         with TestClient(app):
             pass
