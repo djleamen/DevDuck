@@ -27,12 +27,17 @@ class DevDuckUI {
     constructor() {
         this.initializeElements();
         this.setupEventListeners();
-        this.updateStatus('Ready');
+        if (!this.apiToken) {
+            this.updateStatus('Error: API authentication is not configured');
+            console.error('DEVDUCK_API_TOKEN is missing; API requests will fail.');
+        } else {
+            this.updateStatus('Ready');
+        }
         this.initializeVapi();
     }
 
     apiHeaders(headers = {}) {
-        const authHeader = this.apiToken ? { 'X-DevDuck-Token': this.apiToken } : {};
+        const authHeader = { 'X-DevDuck-Token': this.apiToken };
         return { ...authHeader, ...headers };
     }
 
@@ -339,10 +344,9 @@ class DevDuckUI {
     }
 
     fetchCodeSnippet(filePath) {
-        const url = `${this.apiBase}/get_code_snippet`;
-        fetch(url, {
+        this.apiFetch('/get_code_snippet', {
             method: 'POST',
-            headers: this.apiHeaders({ 'Content-Type': 'application/json' }),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name: 'get_code_snippet',
                 parameters: { file_path: filePath },

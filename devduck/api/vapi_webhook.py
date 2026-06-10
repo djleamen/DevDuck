@@ -27,24 +27,40 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="DevDuck API", version="0.1.0")
 
 TOKEN_HEADER = "X-DevDuck-Token"
+WEBHOOK_PATH = "/webhook/vapi"
 
 
 def _load_api_token() -> str:
-    """Load API token from environment, generating an ephemeral fallback."""
+    """Load required API token from environment."""
     configured_token = os.getenv("DEVDUCK_API_TOKEN", "").strip()
     if configured_token:
         return configured_token
 
-    generated_token = secrets.token_urlsafe(32)
-    logger.warning(
-        "DEVDUCK_API_TOKEN is not set; generated an ephemeral API token. "
-        "Set DEVDUCK_API_TOKEN so frontend and API share the same token."
+    raise RuntimeError(
+        "DEVDUCK_API_TOKEN must be set before starting the API. "
+        "Set it in your environment or .env file."
     )
-    return generated_token
 
 
 API_TOKEN = _load_api_token()
-WEBHOOK_TOKEN = os.getenv("DEVDUCK_VAPI_WEBHOOK_TOKEN", API_TOKEN).strip()
+
+
+def _load_webhook_token(default_token: str) -> str:
+    """Load optional webhook token, defaulting to API token."""
+    raw_webhook_token = os.getenv("DEVDUCK_VAPI_WEBHOOK_TOKEN")
+    if raw_webhook_token is None:
+        return default_token
+
+    webhook_token = raw_webhook_token.strip()
+    if not webhook_token:
+        raise RuntimeError(
+            "DEVDUCK_VAPI_WEBHOOK_TOKEN is set but empty. "
+            "Unset it to reuse DEVDUCK_API_TOKEN."
+        )
+    return webhook_token
+
+
+WEBHOOK_TOKEN = _load_webhook_token(API_TOKEN)
 
 app.add_middleware(
     CORSMiddleware,
@@ -71,7 +87,7 @@ async def require_api_token(request: Request, call_next):
     if request.method == "OPTIONS":
         return await call_next(request)
 
-    expected_token = WEBHOOK_TOKEN if request.url.path == "/webhook/vapi" else API_TOKEN
+    expected_token = WEBHOOK_TOKEN if request.url.path == WEBHOOK_PATH else API_TOKEN
     if not _is_authorized(request, expected_token):
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
 
