@@ -28,6 +28,8 @@ DevDuck is a sentiment-aware chatbot paired with a physical duck:
 pip install -r requirements.txt
 ```
 
+Create a `.env` from `.env.example` and set `DEVDUCK_API_TOKEN` to a strong random value.
+
 ### 2. Start the API Server
 
 ```bash
@@ -52,6 +54,8 @@ ngrok http 8001
 ```
 
 Don't forget to update VAPI variables in `renderer.js`!
+If VAPI calls `/webhook/vapi`, configure a custom request header `X-DevDuck-Token`
+that matches `DEVDUCK_VAPI_WEBHOOK_TOKEN` (or `DEVDUCK_API_TOKEN` if unset).
 
 ## API Endpoints
 

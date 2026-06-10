@@ -5,14 +5,17 @@ FastAPI app for DevDuck: VAPI webhook and basic endpoints
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from devduck.analysis import analyze_developer_mood
@@ -24,6 +27,49 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="DevDuck API", version="0.1.0")
 
+TOKEN_HEADER = "X-DevDuck-Token"
+WEBHOOK_PATH = "/webhook/vapi"
+UNAUTHENTICATED_PATHS = {"/", "/health"}
+DEFAULT_API_TOKEN_PLACEHOLDER = "replace_with_a_strong_random_token"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Load local .env so uvicorn/python -m startup paths receive configured values.
+# PROJECT_ROOT follows the repository layout: <root>/devduck/api/vapi_webhook.py.
+load_dotenv(PROJECT_ROOT / ".env")
+
+
+def _load_api_token() -> str:
+    """Load required API token from environment."""
+    configured_token = os.getenv("DEVDUCK_API_TOKEN", "").strip()
+    if configured_token == DEFAULT_API_TOKEN_PLACEHOLDER:
+        raise RuntimeError(
+            "DEVDUCK_API_TOKEN in your .env/environment must be changed "
+            "from the placeholder value before starting the API."
+        )
+    if configured_token:
+        return configured_token
+
+    raise RuntimeError(
+        "DEVDUCK_API_TOKEN must be set before starting the API. "
+        "Set it in your environment or .env file."
+    )
+
+
+def _load_webhook_token(default_token: str) -> str:
+    """Load optional webhook token, defaulting to API token."""
+    raw_webhook_token = os.getenv("DEVDUCK_VAPI_WEBHOOK_TOKEN")
+    if raw_webhook_token is None:
+        return default_token
+
+    webhook_token = raw_webhook_token.strip()
+    if not webhook_token:
+        raise RuntimeError(
+            "DEVDUCK_VAPI_WEBHOOK_TOKEN is set but empty. "
+            "Unset it to reuse DEVDUCK_API_TOKEN."
+        )
+    return webhook_token
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,6 +79,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _is_authorized(request: Request, expected_token: str) -> bool:
+    """Validate the shared token from request headers."""
+    provided_token = request.headers.get(TOKEN_HEADER, "")
+    return bool(provided_token) and secrets.compare_digest(
+        provided_token, expected_token
+    )
+
+
+@app.middleware("http")
+async def require_api_token(request: Request, call_next):
+    """Require shared-token authentication for all non-preflight requests."""
+    if (
+        request.method == "OPTIONS"
+        or request.url.path in UNAUTHENTICATED_PATHS
+    ):
+        return await call_next(request)
+
+    expected_token = (
+        request.app.state.webhook_token
+        if request.url.path == WEBHOOK_PATH
+        else request.app.state.api_token
+    )
+    if not _is_authorized(request, expected_token):
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+    return await call_next(request)
+
+
+@app.on_event("startup")
+async def configure_auth_tokens() -> None:
+    """Validate and cache authentication tokens for request middleware."""
+    api_token = _load_api_token()
+    app.state.api_token = api_token
+    app.state.webhook_token = _load_webhook_token(api_token)
+
 
 # Files served by /get_code_snippet must live under this directory tree;
 # anything outside it (including via .. traversal or symlinks) is rejected.

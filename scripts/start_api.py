@@ -6,8 +6,11 @@ Simple script to start the DevDuck API server.
 import sys
 import os
 import uvicorn
+from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 if __name__ == "__main__":
     # Loopback by default; set DEVDUCK_API_HOST=0.0.0.0 only when the API
