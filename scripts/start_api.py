@@ -14,7 +14,7 @@ if __name__ == "__main__":
     # is intentionally exposed (e.g. behind ngrok for VAPI webhooks).
     host = os.getenv("DEVDUCK_API_HOST", "127.0.0.1")
 
-    print("\U0001F986 Starting DevDuck API server...")
+    print("🦆 Starting DevDuck API server...")
     print("API will be available at: http://localhost:8001")
     print("Press Ctrl+C to stop")
 
