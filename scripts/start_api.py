@@ -10,13 +10,17 @@ import uvicorn
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 if __name__ == "__main__":
-    print("🦆 Starting DevDuck API server...")
+    # Loopback by default; set DEVDUCK_API_HOST=0.0.0.0 only when the API
+    # is intentionally exposed (e.g. behind ngrok for VAPI webhooks).
+    host = os.getenv("DEVDUCK_API_HOST", "127.0.0.1")
+
+    print("\U0001F986 Starting DevDuck API server...")
     print("API will be available at: http://localhost:8001")
     print("Press Ctrl+C to stop")
 
     uvicorn.run(
         "devduck.api.vapi_webhook:app",
-        host="0.0.0.0",
+        host=host,
         port=8001,
         reload=True,
         log_level="info"
