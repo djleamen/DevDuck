@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -28,11 +29,21 @@ app = FastAPI(title="DevDuck API", version="0.1.0")
 
 TOKEN_HEADER = "X-DevDuck-Token"
 WEBHOOK_PATH = "/webhook/vapi"
+UNAUTHENTICATED_PATHS = {"/", "/health"}
+DEFAULT_API_TOKEN_PLACEHOLDER = "replace_with_a_strong_random_token"
+
+# Load local .env so uvicorn/python -m startup paths receive configured values.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 def _load_api_token() -> str:
     """Load required API token from environment."""
     configured_token = os.getenv("DEVDUCK_API_TOKEN", "").strip()
+    if configured_token == DEFAULT_API_TOKEN_PLACEHOLDER:
+        raise RuntimeError(
+            "DEVDUCK_API_TOKEN must be changed from the placeholder value "
+            "in .env.example before starting the API."
+        )
     if configured_token:
         return configured_token
 
@@ -40,9 +51,6 @@ def _load_api_token() -> str:
         "DEVDUCK_API_TOKEN must be set before starting the API. "
         "Set it in your environment or .env file."
     )
-
-
-API_TOKEN = _load_api_token()
 
 
 def _load_webhook_token(default_token: str) -> str:
@@ -59,8 +67,6 @@ def _load_webhook_token(default_token: str) -> str:
         )
     return webhook_token
 
-
-WEBHOOK_TOKEN = _load_webhook_token(API_TOKEN)
 
 app.add_middleware(
     CORSMiddleware,
@@ -84,14 +90,30 @@ def _is_authorized(request: Request, expected_token: str) -> bool:
 @app.middleware("http")
 async def require_api_token(request: Request, call_next):
     """Require shared-token authentication for all non-preflight requests."""
-    if request.method == "OPTIONS":
+    if (
+        request.method == "OPTIONS"
+        or request.url.path in UNAUTHENTICATED_PATHS
+    ):
         return await call_next(request)
 
-    expected_token = WEBHOOK_TOKEN if request.url.path == WEBHOOK_PATH else API_TOKEN
+    expected_token = (
+        request.app.state.webhook_token
+        if request.url.path == WEBHOOK_PATH
+        else request.app.state.api_token
+    )
     if not _is_authorized(request, expected_token):
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
 
     return await call_next(request)
+
+
+@app.on_event("startup")
+async def configure_auth_tokens() -> None:
+    """Validate and cache authentication tokens for request middleware."""
+    api_token = _load_api_token()
+    app.state.api_token = api_token
+    app.state.webhook_token = _load_webhook_token(api_token)
+
 
 # Files served by /get_code_snippet must live under this directory tree;
 # anything outside it (including via .. traversal or symlinks) is rejected.
