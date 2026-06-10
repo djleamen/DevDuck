@@ -10,5 +10,6 @@ const { contextBridge } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     vapiPublicKey: process.env.VAPI_PUBLIC_KEY || '',
     vapiAssistantId: process.env.VAPI_ASSISTANT_ID || '',
-    vapiWebhookUrl: process.env.VAPI_WEBHOOK_URL || ''
+    vapiWebhookUrl: process.env.VAPI_WEBHOOK_URL || '',
+    devduckApiToken: process.env.DEVDUCK_API_TOKEN || ''
 });

@@ -5,6 +5,7 @@ FastAPI app for DevDuck: VAPI webhook and basic endpoints
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from devduck.analysis import analyze_developer_mood
@@ -24,6 +26,26 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="DevDuck API", version="0.1.0")
 
+TOKEN_HEADER = "X-DevDuck-Token"
+
+
+def _load_api_token() -> str:
+    """Load API token from environment, generating an ephemeral fallback."""
+    configured_token = os.getenv("DEVDUCK_API_TOKEN", "").strip()
+    if configured_token:
+        return configured_token
+
+    generated_token = secrets.token_urlsafe(32)
+    logger.warning(
+        "DEVDUCK_API_TOKEN is not set; generated an ephemeral API token. "
+        "Set DEVDUCK_API_TOKEN so frontend and API share the same token."
+    )
+    return generated_token
+
+
+API_TOKEN = _load_api_token()
+WEBHOOK_TOKEN = os.getenv("DEVDUCK_VAPI_WEBHOOK_TOKEN", API_TOKEN).strip()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,6 +55,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _is_authorized(request: Request, expected_token: str) -> bool:
+    """Validate the shared token from request headers."""
+    provided_token = request.headers.get(TOKEN_HEADER, "")
+    return bool(provided_token) and secrets.compare_digest(
+        provided_token, expected_token
+    )
+
+
+@app.middleware("http")
+async def require_api_token(request: Request, call_next):
+    """Require shared-token authentication for all non-preflight requests."""
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    expected_token = WEBHOOK_TOKEN if request.url.path == "/webhook/vapi" else API_TOKEN
+    if not _is_authorized(request, expected_token):
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+    return await call_next(request)
 
 # Files served by /get_code_snippet must live under this directory tree;
 # anything outside it (including via .. traversal or symlinks) is rejected.

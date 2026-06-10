@@ -17,6 +17,7 @@ try {
 }
 class DevDuckUI {
     apiBase = 'http://localhost:8001';
+    apiToken = globalThis.electronAPI?.devduckApiToken || '';
     vapiPublicKey = globalThis.electronAPI?.vapiPublicKey || '';
     vapiAssistantId = globalThis.electronAPI?.vapiAssistantId || '';
     isListening = false;
@@ -28,6 +29,16 @@ class DevDuckUI {
         this.setupEventListeners();
         this.updateStatus('Ready');
         this.initializeVapi();
+    }
+
+    apiHeaders(headers = {}) {
+        const authHeader = this.apiToken ? { 'X-DevDuck-Token': this.apiToken } : {};
+        return { ...authHeader, ...headers };
+    }
+
+    apiFetch(path, options = {}) {
+        const headers = this.apiHeaders(options.headers || {});
+        return fetch(`${this.apiBase}${path}`, { ...options, headers });
     }
     
     async initialize() {
@@ -183,7 +194,7 @@ class DevDuckUI {
 
                 // Call backend to toggle listening ON
                 try {
-                    const response = await fetch(`${this.apiBase}/listening/toggle`, {
+                    const response = await this.apiFetch('/listening/toggle', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' }
                     });
@@ -224,7 +235,7 @@ class DevDuckUI {
         try {
             this.updateStatus('Toggling...');
             
-            const response = await fetch(`${this.apiBase}/listening/toggle`, {
+            const response = await this.apiFetch('/listening/toggle', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -261,7 +272,7 @@ class DevDuckUI {
 
     async loadHistory() {
         try {
-            const response = await fetch(`${this.apiBase}/history`);
+            const response = await this.apiFetch('/history');
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -319,7 +330,7 @@ class DevDuckUI {
 
     async checkServerStatus() {
         try {
-            const response = await fetch(`${this.apiBase}/health`);
+            const response = await this.apiFetch('/health');
             return response.ok;
         } catch (error) {
             console.warn('Server health check failed:', error.message);
@@ -331,9 +342,7 @@ class DevDuckUI {
         const url = `${this.apiBase}/get_code_snippet`;
         fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: this.apiHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
                 name: 'get_code_snippet',
                 parameters: { file_path: filePath },
