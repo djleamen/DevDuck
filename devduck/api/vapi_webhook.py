@@ -36,8 +36,7 @@ app.add_middleware(
 
 # Files served by /get_code_snippet must live under this directory tree;
 # anything outside it (including via .. traversal or symlinks) is rejected.
-WORKSPACE_ROOT = Path(
-    os.getenv("DEVDUCK_WORKSPACE_ROOT", os.getcwd())).resolve()
+WORKSPACE_ROOT = Path(os.getenv("DEVDUCK_WORKSPACE_ROOT", os.getcwd())).resolve()
 
 # --- Application state management ---
 
@@ -531,4 +530,8 @@ if __name__ == "__main__":
     import uvicorn
     # Loopback by default; set DEVDUCK_API_HOST=0.0.0.0 only when the API
     # is intentionally exposed (e.g. behind ngrok for VAPI webhooks).
-    uvicorn.run(app, host=os.getenv("DEVDUCK_API_HOST", "127.0.0.1"), port=8000)
+    uvicorn.run(
+        app,
+        host=os.getenv("DEVDUCK_API_HOST", "127.0.0.1"),
+        port=int(os.getenv("DEVDUCK_API_PORT", "8001")),
+    )
