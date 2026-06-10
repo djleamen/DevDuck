@@ -25,7 +25,9 @@ logger = logging.getLogger(__name__)
 class DevDuckApplication:
     """Main DevDuck application class coordinating components."""
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.environ.get("VAPI_API_KEY", "")
+        resolved_key = api_key if api_key is not None else os.environ.get(
+            "VAPI_API_KEY", "")
+        self.api_key = resolved_key.strip()
         if not self.api_key:
             logger.warning(
                 "No VAPI API key configured (set VAPI_API_KEY); "
