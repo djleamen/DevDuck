@@ -3,6 +3,7 @@ FastAPI app for DevDuck: VAPI webhook and basic endpoints
 """
 
 import json
+import math
 import logging
 import os
 import secrets
@@ -253,6 +254,12 @@ def handle_suggest_break(params: Dict[str, Any]) -> Dict[str, Any]:
     """Handle break suggestion requests"""
     stress_level = params.get('stress_level', 'medium')
     work_duration = params.get('work_duration', 60)
+    try:
+        work_duration = float(work_duration)
+        if not math.isfinite(work_duration):
+            work_duration = 60.0
+    except (TypeError, ValueError):
+        work_duration = 60.0
 
     suggestions = {
         "low": "You're doing great! Consider a 5-minute stretch break.",
@@ -515,10 +522,14 @@ async def vapi_webhook(request: Request):
 
         return {"success": True, "message": "Webhook received"}
 
+    except json.JSONDecodeError as e:
+        logger.warning("Received VAPI webhook with invalid JSON body: %s", e)
+        raise HTTPException(
+            status_code=400, detail="Invalid JSON in request body") from e
     except Exception as e:
         logger.exception("Error processing VAPI webhook")
         raise HTTPException(
-            status_code=500, detail=f"Webhook processing error: {str(e)}") from e
+            status_code=500, detail="Internal error processing webhook") from e
 
 
 @app.post("/duck/talk/start")

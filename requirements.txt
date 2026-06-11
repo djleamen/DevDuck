@@ -5,10 +5,15 @@ pydantic>=1.8.0
 python-dotenv>=0.19.0
 loguru>=0.6.0
 pytest>=6.0.0
+httpx>=0.24.0
 black>=21.0.0
 flake8>=3.9.0
 aiofiles>=0.5.0
-vapi-python>=0.1.9
+# Optional: vapi-python is not imported by the codebase yet and pulls in
+# pyaudio, which fails to build without the PortAudio system headers.
+# Install it manually when voice calling is needed:
+#   pip install vapi-python
+# vapi-python>=0.1.9
 flask>=2.0.0
 PyYAML>=5.4.1
 pyserial>=3.5
