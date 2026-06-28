@@ -7,6 +7,13 @@ to create or update the VAPI assistant.
 
 import os
 
+# Local API server URL used as the webhook fallback when VAPI_WEBHOOK_URL is
+# unset. The port mirrors DEVDUCK_API_PORT (see scripts/start_api.py) so the
+# two stay in sync if the API runs on a non-default port.
+_DEFAULT_WEBHOOK_URL = (
+    f"http://localhost:{os.getenv('DEVDUCK_API_PORT', '8001')}/webhook/vapi"
+)
+
 DEVDUCK_ASSISTANT_CONFIG = {
     "name": "DevDuck",
     "model": {
@@ -43,9 +50,10 @@ Always prioritize the developer's well-being alongside their technical needs."""
         "voiceId": "jennifer"
     },
     "firstMessage": "Hi! I'm DevDuck, your AI debugging buddy. I'm here to help you with code, provide encouragement, and make sure you're taking care of yourself while coding. What are you working on today?",
-    # Webhook endpoint VAPI calls back. Configure VAPI_WEBHOOK_URL (e.g. an
-    # ngrok tunnel) in production; defaults to the local API server.
-    "serverUrl": os.getenv("VAPI_WEBHOOK_URL", "http://localhost:8001/webhook/vapi"),
+    # Webhook endpoint VAPI calls back. Set VAPI_WEBHOOK_URL to a publicly
+    # reachable URL (e.g. an ngrok dev tunnel) when running VAPI against this
+    # server; otherwise it defaults to the local API server.
+    "serverUrl": os.getenv("VAPI_WEBHOOK_URL", _DEFAULT_WEBHOOK_URL),
     "functions": [
         {
             "name": "analyze_code",
