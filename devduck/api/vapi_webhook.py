@@ -624,11 +624,13 @@ def retrieve_context(request: FunctionCallRequest):
     if not snippet_id:
         raise HTTPException(status_code=400, detail="Snippet ID is required")
 
-    context = app_state.context_store.get(snippet_id)
-    if not context:
+    # Test membership rather than truthiness: a stored-but-falsy context
+    # (e.g. "") still means the snippet_id exists, so it should return 200
+    # with that value, not a misleading 404.
+    if snippet_id not in app_state.context_store:
         raise HTTPException(status_code=404, detail="Context not found")
 
-    return {"success": True, "context": context}
+    return {"success": True, "context": app_state.context_store[snippet_id]}
 
 
 if __name__ == "__main__":
