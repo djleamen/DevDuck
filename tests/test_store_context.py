@@ -11,9 +11,10 @@ def _reload_module(monkeypatch, api_token="api-token"):
     return importlib.reload(vapi_webhook)
 
 
-def test_store_empty_context_is_accepted(monkeypatch):
-    # A valid but falsy context (empty string) must be storable rather than
-    # being rejected at store time with a 400.
+def test_store_and_retrieve_empty_context_round_trip(monkeypatch):
+    # A valid but falsy context (empty string) must be storable and then
+    # retrievable end to end, rather than being rejected at store time with a
+    # 400 or returned as a misleading 404 on retrieval.
     module = _reload_module(monkeypatch)
     headers = {"X-DevDuck-Token": "api-token"}
 
@@ -28,8 +29,32 @@ def test_store_empty_context_is_accepted(monkeypatch):
         )
         assert stored.status_code == 200
 
+        retrieved = client.post(
+            "/retrieve_context",
+            json={"name": "retrieve_context", "parameters": {"snippet_id": "empty"}},
+            headers=headers,
+        )
+        assert retrieved.status_code == 200
+        assert retrieved.json()["context"] == ""
+
     # The falsy value is retained in the store under its key.
     assert module.app_state.context_store["empty"] == ""
+
+
+def test_retrieve_missing_context_returns_404(monkeypatch):
+    module = _reload_module(monkeypatch)
+    headers = {"X-DevDuck-Token": "api-token"}
+
+    with TestClient(module.app) as client:
+        missing = client.post(
+            "/retrieve_context",
+            json={
+                "name": "retrieve_context",
+                "parameters": {"snippet_id": "does-not-exist"},
+            },
+            headers=headers,
+        )
+        assert missing.status_code == 404
 
 
 def test_store_missing_context_returns_400(monkeypatch):
