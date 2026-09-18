@@ -608,7 +608,10 @@ def store_context(request: FunctionCallRequest):
     snippet_id = request.parameters.get("snippet_id")
     context = request.parameters.get("context")
 
-    if not snippet_id or not context:
+    # Test context for presence (None) rather than truthiness so a valid but
+    # falsy value (e.g. "") can be stored; retrieve_context already returns
+    # such values instead of a misleading 404.
+    if not snippet_id or context is None:
         raise HTTPException(
             status_code=400, detail="Snippet ID and context are required")
 
@@ -625,8 +628,8 @@ def retrieve_context(request: FunctionCallRequest):
         raise HTTPException(status_code=400, detail="Snippet ID is required")
 
     # Test membership rather than truthiness: a stored-but-falsy context
-    # (e.g. "") still means the snippet_id exists, so it should return 200
-    # with that value, not a misleading 404.
+    # (e.g. "") still means the snippet_id exists, so return it with 200
+    # instead of a misleading 404.
     if snippet_id not in app_state.context_store:
         raise HTTPException(status_code=404, detail="Context not found")
 
