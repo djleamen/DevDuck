@@ -19,7 +19,11 @@ class SecurityConfig:
         self.allowed_local_hosts = ['localhost', '127.0.0.1', '::1']
 
     def _is_local_url(self, parsed_url) -> bool:
-        return any(host in parsed_url.netloc for host in self.allowed_local_hosts)
+        # Match the parsed hostname exactly against the allowlist. A substring
+        # check on netloc would treat hosts such as "localhost.attacker.com" or
+        # "127.0.0.1.evil.com" as local, letting the allow_local_http path
+        # permit insecure HTTP/WS to a non-local host.
+        return parsed_url.hostname in self.allowed_local_hosts
 
     def _validate_websocket_protocol(self, parsed_url, is_local: bool, allow_local_http: bool) -> bool:
         """Validate WebSocket protocol."""
