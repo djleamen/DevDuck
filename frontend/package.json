@@ -17,7 +17,7 @@
   "author": "DJ Leamen & Nahl Farhan",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^41.10.6"
+    "electron": "^42.11.16"
   },
   "dependencies": {
     "@vapi-ai/web": "^2.3.10",
